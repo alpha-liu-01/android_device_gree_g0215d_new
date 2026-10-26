@@ -1,0 +1,9 @@
+cc_library_shared {
+    name: "remoteir.default",
+    srcs: ["remoteir.c"],
+    local_include_dirs: ["include"],
+    shared_libs: ["liblog"],
+    relative_install_path: "hw",
+    compile_multilib: "both",
+    vendor: true,
+}

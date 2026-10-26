@@ -1,0 +1,12 @@
+on post-fs-data
+    # libfpalgorithm.so stores templates here. This is the Android 6 path.
+    mkdir /data/system/fingerprint 0770 system system
+    mkdir /data/system/fingerprint/calibration 0770 system system
+
+# Closed-source Goodix daemon. The binary is not in this tree.
+# Leave it disabled until an Android 16 fingerprint HAL can talk to it.
+service vendor.gx_fpd /vendor/bin/gx_fpd
+    class hal
+    user system
+    group system
+    disabled

@@ -1,0 +1,5 @@
+# Goodix GF816M. libfphal.so opens this node.
+/dev/goodix_fp           0660   system     system
+
+# Raon remote. remoteir.default opens this node.
+/dev/remote_ctrl_dev     0660   system     system

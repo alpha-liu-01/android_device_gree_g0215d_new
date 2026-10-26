@@ -1,0 +1,13 @@
+prebuilt_etc {
+    name: "init.gree.rc",
+    src: "init.gree.rc",
+    sub_dir: "init/hw",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "ueventd.gree.rc",
+    src: "ueventd.gree.rc",
+    filename: "ueventd.rc",
+    vendor: true,
+}
