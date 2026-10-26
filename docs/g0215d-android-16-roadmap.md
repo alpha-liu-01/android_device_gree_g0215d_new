@@ -352,6 +352,8 @@ adb shell rm /tmp/boot.img
 
 ### 阶段 2：内核启动到显示和 adb
 
+过程记在 `docs/g0215d-phase-2.md`。内核在 `alpha-liu-01/android_kernel_gree_g0215d` 的 `g0215d` 分支，基线是小米 `lineage-22.2` 的 `535079d2fa36`。触摸驱动是乐视的 `atmel_mxt_ts_letv.c`。
+
 - 以 `LineageOS/android_kernel_xiaomi_msm8996` 的 `lineage-22.2` 为基线 fork。需要一加 3 某段历史时再从 `android_kernel_oneplus_msm8996` 摘提交，不从一加 3 的 defconfig 整份覆盖
 - defconfig 从 donor 的 MSM8996 defconfig 长出来，再按 `docs/reference/g0215d-3.18.20-perf.config` 打开格力板级驱动。`CONFIG_WIL6210` 在原厂配置里是模块，但本次启动没有加载它，也没有对应的设备树节点，新 defconfig 里先不要为它浪费时间
 - 维持 `Image.gz-dtb`、4 KB 页、现有 boot 镜像偏移
