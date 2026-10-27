@@ -302,10 +302,10 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 8. 第一张卡识别、驻网、蜂窝数据、听筒和免提通话
 9. 休眠唤醒（背光）
 10. USB 功能切换。文件传输双向、PTP、MIDI、USB 网络共享都切换过，见 7I
+11. 振动。DRV2605 v1.1 已绑定，设置走的 vibrator HAL 能下发定时振动，见 7J。TWRP 里的振动以后再说
 
 还没做，按这个优先级：
 
-11. **7J 振动**。整机没有振动，带 4.4 内核的新 TWRP 也没有，所以先看内核，不是先看 Android 的 vibrator HAL。板级是 DRV2605（`CONFIG_INPUT_DRV2605_HAPTICS`）。验收：系统里来电或设置中的振动能感觉到。TWRP 里的振动以后再说，不在这项。
 12. **7K 硬件视频和音频编解码**。这是相机的前提，不过这一关就不开始 7L。7C 只补了 `media_codecs.xml` 让软件播放能出声，Venus 和音频 DSP 编解码当时明确留在外面。视频走 Venus，音频 offload 在 ADSP。验收：播一段视频时用的是硬件解码器，不是 `OMX.google`；硬件编码器能写出一个文件；一段 AAC（或这台机器上有的音频格式）走硬件解码。
 13. **7L 相机**。旧的 7G「进程还在即可、出图留到阶段 5」作废。前后摄都能预览、拍照，并录一段短视频。传感器以 `msm8996_camera_G0215D.xml` 里的 `s5k3p3`、`ov8858` 为准。
 14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。
@@ -469,7 +469,15 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **产品号**：`init.usb.configfs.rc` 负责挂 function，但 `configfs=1` 时原来的 `init.usb.rc` 不写产品号。`init.gree.rc` 补上 Google 的 id：`mtp` `4ee1`、`mtp,adb` `4ee2`、`rndis` `4ee3`、`rndis,adb` `4ee4`、`ptp` `4ee5`、`ptp,adb` `4ee6`、`adb` `4ee7`、`midi` `4ee8`、`midi,adb` `4ee9`。去掉那三条把 `persist.sys.usb.config` 写回 `mtp,adb` 的规则。adb 仍由 `adb_enabled=1` 保持，框架会在所选功能后面加上 `,adb`。
     - **实机**：冷启动后 `vendor.usb-hal-1-0` 在跑，端口 `connected`、`data_role=device`。文件传输：主机看到 `18d1:4ee2`（MTP + debug），从手机读出 `usb-7i-test.txt` 内容 `g0215d-7i`，从电脑写入 `usb-7i-to-phone.txt`，手机上读到 `host-to-phone`。PTP：`18d1:4ee6`，接口类 6 Still Image。MIDI：`18d1:4ee9`。网络共享：`18d1:4ee4`，主机出现一块 `LOWER_UP` 的网卡，切回 MTP 后网卡消失。测完把解锁后的默认功能设成 `mtp`，冷启动后仍是 `mtp,adb`（仅充电不再是默认）。测试文件已删。没有改内核。SELinux 仍是 permissive，二进制标签还是 `system_file`，和传感器 HAL 一样，转 enforcing 之前要补域。
     - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7i.img`（稀疏格式，1699783200 字节，`sha256 f0f7f7f0a0f1f351ccff69a870e86420326685a5f514d79751b68b4c0a038cc2`）。里面有 `android.hardware.usb@1.0-service.gree`、`/system/lib64/android.hardware.usb@1.0.so`，`init.gree.rc` 有 `0x4ee9`，manifest 有 `android.hardware.usb`，没有第二份 USB fragment。这份镜像没有刷。手机上现在跑的是推进去之后的那次启动。内核和 boot 没有改，仍是 `boot-audio9.img`。
-  - **7J、7K、7L、7M**：见上面的剩余顺序。7J 是振动，7K 是硬件编解码，7L 是相机出图，7M 是指纹解锁。7K 没有记录之前不开始 7L。原来的 7G（相机和指纹只要求进程还在）作废。
+  - **7J（振动：DRV2605 已绑定，系统定时振动已下发）**：
+    - **现象**：整机没有振动，带 4.4 内核的新 TWRP 也没有。板级是 DRV2605，在 `i2c@75b6000`（BLSP2 QUP2）的 `0x5a`，compatible `qcom,haptics-drv2605`。使能是 TLMM GPIO 74，高电平有效；GPIO 48 是触发脚，下拉。
+    - **根因**：`CONFIG_TSPDRV` 已经把 `drivers/misc/drv2604.c` 编进内核，但这份驱动没有 `of_match_table`，使能脚写死 GPIO 93，而且读到的芯片 ID 不是 DRV2604 / DRV2604L 就直接失败。格力的 DTS 里也没有这个节点，所以芯片从未被探测。TWRP 用的是同一颗 4.4 内核，所以那边同样没有振动。
+    - **内核**：`g0215d-msm8996-v3-pmi8996-mtp.dts` 加上 `haptics@5a` 和 `g0215d_motor_default`（GPIO 74 输出高、GPIO 48 下拉）。驱动认 `qcom,haptics-drv2605`，使能脚改读 `motor,en-gpio`。DRV2605 / DRV2605L 走同一条 timed_output RTP，不要求 `drv2604.bin`；DRV2604 仍按原路径加载波形固件。执行器参数沿用驱动里已有的 LRA、额定电压 `0x30`。
+    - **用户态**：设置和来电走的是 HIDL，不是直接写 sysfs。`device.mk` 加入 `android.hardware.vibrator@1.0-service`、`android.hardware.vibrator@1.0-impl`、`vibrator.default`（读 `/sys/class/timed_output/vibrator/enable`）。`manifest.xml` 声明 `android.hardware.vibrator` 1.0 `IVibrator/default`。
+    - **实机**：boot 已刷成 `boot-vibe.img`，内核是 `4.4.302-perf+ #27`。`drv2604_probe` 读到状态 `0x64`，打印 `drv2605 v1.1`，`probe succeeded`。`/sys/class/timed_output/vibrator/enable` 写 500 后从约 486 倒计时到 0。`waveform` 里额定电压寄存器 `0x16` 读回 `0x30`。冷启动后 `vendor.vibrator-1-0` 在跑，`lshal` 有 `IVibrator/default`。`cmd vibrator vibrate 400` 记进 `dumpsys vibrator` 的 Previous vibrations：`OneShot{mDuration=400}`，来源是 Shell command。框架还会去找 1.3，找不到就用 1.0，这条日志可以忽略。SELinux 仍是 permissive。TWRP 的振动没有做。
+    - **内核与镜像**：`Image.gz-dtb` 12778075 字节，加载地址 `0x80008000`，结束地址 `0x80c37a5b`，仍低于 ramdisk 的 `0x81000000`。boot 镜像是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-vibe.img`，13619200 字节，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`。cmdline 和 ramdisk 沿用 `boot-audio9.img`。已 `dd` 进 `/dev/block/by-name/boot`，读回的 sha256 一致。这一轮重编了内核，属于“本阶段不做”里的例外。内核改动还没提交。
+    - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7j.img`（稀疏格式，1699832352 字节，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`）。里面有 vibrator 服务、`vibrator.default.so`，manifest 有 `android.hardware.vibrator`。这份镜像没有刷。手机上现在跑的是推进去之后的那次启动，boot 是 `boot-vibe.img`。
+  - **7K、7L、7M**：见上面的剩余顺序。7K 是硬件编解码，7L 是相机出图，7M 是指纹解锁。7K 没有记录之前不开始 7L。原来的 7G（相机和指纹只要求进程还在）作废。
 
 ### 事件
 
@@ -561,11 +569,17 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **实机**：MTP 双向拷过文件。PTP 是 Still Image，MIDI 是 `4ee9`，RNDIS 在主机上拉起过网卡。解锁后的默认功能设成 `mtp`。
 4. **整镜像**：`system-7i.img` 编出来了，`sha256 f0f7f7f0a0f1f351ccff69a870e86420326685a5f514d79751b68b4c0a038cc2`，没有刷。
 
+同日第十五轮：7J 振动。DRV2605 v1.1 已绑定，`cmd vibrator vibrate 400` 记进了 Vibrator Service，细节见 7J。重编了内核，boot 是 `boot-vibe.img`，已刷。
+1. **内核**：原来的 `drv2604` 驱动不认设备树，使能脚写死 93，并且拒绝 DRV2605。DTS 补上 `haptics@5a`，使能改读 GPIO 74。
+2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
+3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
+4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
 ## 步骤 8：收口
 
 推荐：7I 到 7M 都有一次通过的记录，这一阶段就停。下一步才是阶段 4：从 userdata 划出 vendor，再把板级目录接回小米 `lineage-22.2` 的 `msm8996-common`。
 
-USB 文件传输、振动、硬件编解码、相机出图或指纹解锁还没有记录时，不改分区表。
+硬件编解码、相机出图或指纹解锁还没有记录时，不改分区表。
 
 ### 实现笔记
 
@@ -578,7 +592,7 @@ USB 文件传输、振动、硬件编解码、相机出图或指纹解锁还没�
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 如果 DRV2605 没有绑定，允许再编一版内核
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包

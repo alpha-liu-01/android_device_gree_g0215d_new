@@ -76,6 +76,9 @@ PRODUCT_PACKAGES += \
     android.hardware.bluetooth@1.0-impl \
     android.hardware.bluetooth@1.0-service \
     android.hardware.usb@1.0-service.gree \
+    android.hardware.vibrator@1.0-impl \
+    android.hardware.vibrator@1.0-service \
+    vibrator.default \
     libbt-vendor \
     wcnss_filter \
     libacdbloader \

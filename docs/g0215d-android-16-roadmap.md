@@ -376,7 +376,7 @@ adb shell rm /tmp/boot.img
 3. `init.gree.rc` 接好 `6a00000.dwc3` USB ConfigFS `ffs.adb` 并设 `ro.adb.secure=0`；
 4. 实现 `lights.msm8996` + `light@2.0-service` 接管背光与 `fb0/blank` 休眠唤醒；
 5. 提取 `modem`/`persist` 分区中的 QCA6174 固件（含 `otp30.bin`、`qwlan30.bin`、`bdwlan30.bin`、`wlan_mac.bin`）并推入 `android.hardware.wifi@1.0-service` 与 `wpa_supplicant`（已在 `#17` 内核下实测生成 `wlan0`）。
-2026-10-27：交互项已经通过（显示、触摸、按键、Wi-Fi、音频、蓝牙、传感器、第一张卡的驻网和通话、休眠唤醒）。目标改为先把 18.1 做成日常可交付的系统，再进入阶段 4。7I USB 功能切换已通过（文件传输双向，PTP、MIDI、网络共享能枚举）。剩余顺序是 7J 振动（整机无振动，含 4.4 内核的 TWRP；TWRP 本身以后再说）→ 7K 硬件视频和音频编解码 → 7L 相机出图 → 7M 指纹解锁。7K 没有记录之前不开始 7L。原来的 7G「相机和指纹只要求进程还在」作废。细节和验收标准在 `docs/g0215d-phase-3.md` 的步骤 7。
+2026-10-27：交互项已经通过（显示、触摸、按键、Wi-Fi、音频、蓝牙、传感器、第一张卡的驻网和通话、休眠唤醒）。目标改为先把 18.1 做成日常可交付的系统，再进入阶段 4。7I USB 功能切换已通过（文件传输双向，PTP、MIDI、网络共享能枚举）。7J 振动已通过（DRV2605 v1.1 绑定，系统定时振动已下发；TWRP 本身以后再说）。剩余顺序是 7K 硬件视频和音频编解码 → 7L 相机出图 → 7M 指纹解锁。7K 没有记录之前不开始 7L。原来的 7G「相机和指纹只要求进程还在」作废。细节和验收标准在 `docs/g0215d-phase-3.md` 的步骤 7。
 
 完成标准：18.1 可以日常使用。在交互项之外，USB 文件传输、振动、硬件编解码、前后摄拍照和短视频、指纹录入与解锁都通过。短信、VoLTE、第二张卡、NFC、红外、FM、SELinux enforcing 不挡住收口。SELinux 保持 permissive，denial 有记录。
 
