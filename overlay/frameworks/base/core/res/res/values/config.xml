@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    1440x2560 phone with physical navigation keys.
+    config_showNavigationBar stays off. Density is 640, set as ro.sf.lcd_density.
+-->
+<resources>
+    <bool name="config_showNavigationBar">false</bool>
+</resources>

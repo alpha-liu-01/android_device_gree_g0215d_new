@@ -1,40 +1,205 @@
-# Board facts for G0215D. Platform packages come from msm8996-common.
+# Device was launched with M
+$(call inherit-product, $(SRC_TARGET_DIR)/product/product_launched_with_m.mk)
 
-# Inherit from msm8996-common
-$(call inherit-product, device/xiaomi/msm8996-common/msm8996.mk)
-
-# Common is the Mi 5 1080p xxhdpi panel. This phone is 1440x2560 at 640 dpi.
+# 1440x2560 at 640 dpi. Physical keys, no software navigation bar.
 PRODUCT_AAPT_CONFIG := normal
 PRODUCT_AAPT_PREF_CONFIG := xxxhdpi
 TARGET_SCREEN_HEIGHT := 2560
 TARGET_SCREEN_WIDTH := 1440
 
+# 4 GB profile from phone-xhdpi-4096-dalvik-heap.mk, with heapgrowthlimit
+# raised for the 1440x2560 framebuffer. heapsize stays 512m.
+PRODUCT_PROPERTY_OVERRIDES += \
+    dalvik.vm.heapstartsize=8m \
+    dalvik.vm.heapgrowthlimit=256m \
+    dalvik.vm.heapsize=512m \
+    dalvik.vm.heaptargetutilization=0.6 \
+    dalvik.vm.heapminfree=8m \
+    dalvik.vm.heapmaxfree=16m \
+    ro.sf.lcd_density=640 \
+    qemu.hw.mainkeys=1 \
+    ro.opengles.version=196610 \
+    ro.hardware.egl=adreno \
+    ro.hardware.vulkan=msm8996 \
+    ro.sf.hwrotation=180 \
+    persist.panel.inversemounted=180 \
+    ro.surface_flinger.primary_display_orientation=ORIENTATION_180 \
+    sys.usb.controller=6a00000.dwc3 \
+    sys.usb.configfs=1 \
+    wifi.interface=wlan0
+
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    ro.adb.secure=0 \
+    persist.sys.usb.config=mtp,adb
+
+DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
+
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH)
 
-# HALO mixer and platform info. Speaker paths use SLIMBUS, not QUAT_MI2S.
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/audio/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
-    $(LOCAL_PATH)/audio/mixer_paths_tasha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tasha.xml
-
-# Common ships a Mi 5 gpio-keys.kl. This phone's file maps key 59 to GREE_KEY.
-PRODUCT_COPY_FILES := $(filter-out %/gpio-keys.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/gpio-keys.kl,$(PRODUCT_COPY_FILES))
-
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/keylayout/gpio-keys.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/gpio-keys.kl \
-    $(LOCAL_PATH)/keylayout/tiny4412-key.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/tiny4412-key.kl
-
-# The Gree sensor library opens this exact path and filename.
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/camera/msm8996_camera_G0215D.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/camera/msm8996_camera_G0215D.xml
-
-# Common already packages android.hardware.light-service.lineage. It binds
-# lcd-backlight, button-backlight, and red/green/blue, and scales to
-# max_brightness. Do not also build the Android 6 lights.msm8996 module.
-
-# Goodix node and data dir. The daemon binary stays out of this tree.
-# Raon IR HAL. This is not Consumer IR.
+# Display, GPU, Audio, Lights, Wi-Fi, Health, Keymaster
 PRODUCT_PACKAGES += \
-    init.gree.rc \
-    ueventd.gree.rc \
-    remoteir.default
+    gralloc.msm8996 \
+    hwcomposer.msm8996 \
+    memtrack.msm8996 \
+    libdisplayconfig \
+    libqdMetaData \
+    libqdMetaData.system \
+    libtinyxml \
+    android.hardware.graphics.allocator@2.0-impl \
+    android.hardware.graphics.allocator@2.0-service \
+    android.hardware.graphics.composer@2.1-service \
+    android.hardware.graphics.mapper@2.0-impl \
+    android.hardware.memtrack@1.0-impl \
+    android.hardware.memtrack@1.0-service \
+    android.hardware.configstore@1.0-service \
+    libEGL_swiftshader \
+    libGLESv1_CM_swiftshader \
+    libGLESv2_swiftshader \
+    android.hardware.keymaster@4.0-service \
+    android.hardware.health@2.1-service \
+    android.hardware.health@2.1-impl \
+    android.hardware.audio.service \
+    android.hardware.audio@6.0-impl \
+    android.hardware.audio.effect@6.0-impl \
+    android.hardware.light@2.0-service \
+    lights.msm8996 \
+    android.hardware.wifi@1.0-service \
+    libwifi-hal-ctrl \
+    libwpa_client \
+    hostapd \
+    wpa_supplicant \
+    wpa_supplicant.conf
+
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
+    $(LOCAL_PATH)/rootdir/etc/fstab.qcom:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.qcom \
+    $(LOCAL_PATH)/rootdir/etc/fstab.ramdisk:$(TARGET_COPY_OUT_RAMDISK)/fstab.qcom \
+    $(LOCAL_PATH)/rootdir/etc/ueventd.qcom.rc:$(TARGET_COPY_OUT_VENDOR)/ueventd.rc \
+    $(LOCAL_PATH)/audio/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
+    $(LOCAL_PATH)/audio/mixer_paths_tasha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tasha.xml \
+    $(LOCAL_PATH)/keylayout/gpio-keys.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/gpio-keys.kl \
+    $(LOCAL_PATH)/keylayout/tiny4412-key.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/tiny4412-key.kl \
+    $(LOCAL_PATH)/camera/msm8996_camera_G0215D.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/camera/msm8996_camera_G0215D.xml \
+    $(LOCAL_PATH)/firmware/A4_2F_4.0_05.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/A4_2F_4.0_05.fw \
+    $(LOCAL_PATH)/firmware/Gree2_4005_V2.06_20170223.raw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/Gree2_4005_V2.06_20170223.raw \
+    $(LOCAL_PATH)/firmware/a530_gpmu.fw2:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_gpmu.fw2 \
+    $(LOCAL_PATH)/firmware/a530_pfp.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_pfp.fw \
+    $(LOCAL_PATH)/firmware/a530_pm4.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_pm4.fw \
+    $(LOCAL_PATH)/firmware/a530v1_pfp.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530v1_pfp.fw \
+    $(LOCAL_PATH)/firmware/a530v1_pm4.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530v1_pm4.fw \
+    $(LOCAL_PATH)/firmware/a530v2_seq.fw2:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530v2_seq.fw2 \
+    $(LOCAL_PATH)/firmware/a530v3_gpmu.fw2:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530v3_gpmu.fw2 \
+    $(LOCAL_PATH)/firmware/a530v3_seq.fw2:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530v3_seq.fw2 \
+    $(LOCAL_PATH)/firmware/a530_zap.b00:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_zap.b00 \
+    $(LOCAL_PATH)/firmware/a530_zap.b01:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_zap.b01 \
+    $(LOCAL_PATH)/firmware/a530_zap.b02:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_zap.b02 \
+    $(LOCAL_PATH)/firmware/a530_zap.elf:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_zap.elf \
+    $(LOCAL_PATH)/firmware/a530_zap.mdt:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_zap.mdt \
+    $(LOCAL_PATH)/firmware/qwlan30.bin:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/qwlan30.bin \
+    $(LOCAL_PATH)/firmware/otp30.bin:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/otp30.bin \
+    $(LOCAL_PATH)/firmware/bdwlan30.bin:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/bdwlan30.bin \
+    $(LOCAL_PATH)/firmware/utf30.bin:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/utf30.bin \
+    $(LOCAL_PATH)/firmware/data.msc:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/data.msc \
+    $(LOCAL_PATH)/wifi/WCNSS_cfg.dat:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/wlan/qca_cld/WCNSS_cfg.dat \
+    $(LOCAL_PATH)/wifi/WCNSS_qcom_cfg.ini:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/wlan/qca_cld/WCNSS_qcom_cfg.ini \
+    $(LOCAL_PATH)/wifi/wlan_mac.bin:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/wlan/qca_cld/wlan_mac.bin \
+    $(LOCAL_PATH)/wifi/WCNSS_qcom_cfg.ini:$(TARGET_COPY_OUT_VENDOR)/etc/wifi/WCNSS_qcom_cfg.ini \
+    $(LOCAL_PATH)/wifi/p2p_supplicant_overlay.conf:$(TARGET_COPY_OUT_VENDOR)/etc/wifi/p2p_supplicant_overlay.conf \
+    $(LOCAL_PATH)/wifi/wpa_supplicant_overlay.conf:$(TARGET_COPY_OUT_VENDOR)/etc/wifi/wpa_supplicant_overlay.conf \
+    $(LOCAL_PATH)/init.atmel_ts.sh:$(TARGET_COPY_OUT_SYSTEM)/bin/init.atmel_ts.sh \
+    $(LOCAL_PATH)/panel_hold.sh:$(TARGET_COPY_OUT_SYSTEM)/bin/panel_hold.sh \
+    $(LOCAL_PATH)/init.gree.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.gree.rc \
+    frameworks/native/data/etc/android.hardware.audio.low_latency.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.low_latency.xml \
+    frameworks/native/data/etc/android.hardware.audio.output.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.output.xml \
+    frameworks/native/data/etc/android.hardware.audio.pro.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.pro.xml \
+    frameworks/native/data/etc/android.hardware.bluetooth.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.bluetooth.xml \
+    frameworks/native/data/etc/android.hardware.bluetooth_le.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.bluetooth_le.xml \
+    frameworks/native/data/etc/android.hardware.camera.flash-autofocus.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.flash-autofocus.xml \
+    frameworks/native/data/etc/android.hardware.camera.front.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.front.xml \
+    frameworks/native/data/etc/android.hardware.camera.full.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.full.xml \
+    frameworks/native/data/etc/android.hardware.camera.raw.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.raw.xml \
+    frameworks/native/data/etc/android.hardware.fingerprint.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.fingerprint.xml \
+    frameworks/native/data/etc/android.hardware.location.gps.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.location.gps.xml \
+    frameworks/native/data/etc/android.hardware.nfc.hce.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.nfc.hce.xml \
+    frameworks/native/data/etc/android.hardware.nfc.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.nfc.xml \
+    frameworks/native/data/etc/android.hardware.opengles.aep.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.opengles.aep.xml \
+    frameworks/native/data/etc/android.hardware.sensor.accelerometer.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.accelerometer.xml \
+    frameworks/native/data/etc/android.hardware.sensor.ambient_temperature.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.ambient_temperature.xml \
+    frameworks/native/data/etc/android.hardware.sensor.barometer.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.barometer.xml \
+    frameworks/native/data/etc/android.hardware.sensor.compass.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.compass.xml \
+    frameworks/native/data/etc/android.hardware.sensor.gyroscope.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.gyroscope.xml \
+    frameworks/native/data/etc/android.hardware.sensor.hifi_sensors.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.hifi_sensors.xml \
+    frameworks/native/data/etc/android.hardware.sensor.light.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.light.xml \
+    frameworks/native/data/etc/android.hardware.sensor.proximity.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.proximity.xml \
+    frameworks/native/data/etc/android.hardware.sensor.relative_humidity.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.relative_humidity.xml \
+    frameworks/native/data/etc/android.hardware.sensor.stepcounter.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.stepcounter.xml \
+    frameworks/native/data/etc/android.hardware.sensor.stepdetector.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.stepdetector.xml \
+    frameworks/native/data/etc/android.hardware.telephony.cdma.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.telephony.cdma.xml \
+    frameworks/native/data/etc/android.hardware.telephony.gsm.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.telephony.gsm.xml \
+    frameworks/native/data/etc/android.hardware.touchscreen.multitouch.jazzhand.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.touchscreen.multitouch.jazzhand.xml \
+    frameworks/native/data/etc/android.hardware.usb.accessory.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.accessory.xml \
+    frameworks/native/data/etc/android.hardware.usb.host.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.host.xml \
+    frameworks/native/data/etc/android.hardware.vulkan.compute-0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.compute-0.xml \
+    frameworks/native/data/etc/android.hardware.vulkan.level-0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.level-0.xml \
+    frameworks/native/data/etc/android.hardware.vulkan.version-1_0_3.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.version-1_0_3.xml \
+    frameworks/native/data/etc/android.hardware.wifi.direct.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.direct.xml \
+    frameworks/native/data/etc/android.hardware.wifi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.xml \
+    frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.midi.xml \
+    frameworks/native/data/etc/android.software.sip.voip.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.sip.voip.xml \
+    frameworks/native/data/etc/handheld_core_hardware.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/handheld_core_hardware.xml \
+    $(LOCAL_PATH)/gpu/lib/egl/eglSubDriverAndroid.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/eglSubDriverAndroid.so \
+    $(LOCAL_PATH)/gpu/lib/egl/libEGL_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/libEGL_adreno.so \
+    $(LOCAL_PATH)/gpu/lib/egl/libGLESv1_CM_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/libGLESv1_CM_adreno.so \
+    $(LOCAL_PATH)/gpu/lib/egl/libGLESv2_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/libGLESv2_adreno.so \
+    $(LOCAL_PATH)/gpu/lib/egl/libq3dtools_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/libq3dtools_adreno.so \
+    $(LOCAL_PATH)/gpu/lib/egl/libq3dtools_esx.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/libq3dtools_esx.so \
+    $(LOCAL_PATH)/gpu/lib/egl/libQTapGLES.so:$(TARGET_COPY_OUT_VENDOR)/lib/egl/libQTapGLES.so \
+    $(LOCAL_PATH)/gpu/lib/hw/vulkan.msm8996.so:$(TARGET_COPY_OUT_VENDOR)/lib/hw/vulkan.msm8996.so \
+    $(LOCAL_PATH)/gpu/lib/libadreno_utils.so:$(TARGET_COPY_OUT_VENDOR)/lib/libadreno_utils.so \
+    $(LOCAL_PATH)/gpu/lib/libbccQTI.so:$(TARGET_COPY_OUT_VENDOR)/lib/libbccQTI.so \
+    $(LOCAL_PATH)/gpu/lib/libC2D2.so:$(TARGET_COPY_OUT_VENDOR)/lib/libC2D2.so \
+    $(LOCAL_PATH)/gpu/lib/libc2d30_bltlib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libc2d30_bltlib.so \
+    $(LOCAL_PATH)/gpu/lib/libCB.so:$(TARGET_COPY_OUT_VENDOR)/lib/libCB.so \
+    $(LOCAL_PATH)/gpu/lib/libdiag.so:$(TARGET_COPY_OUT_VENDOR)/lib/libdiag.so \
+    $(LOCAL_PATH)/gpu/lib/libgsl.so:$(TARGET_COPY_OUT_VENDOR)/lib/libgsl.so \
+    $(LOCAL_PATH)/gpu/lib/libhdr_tm.so:$(TARGET_COPY_OUT_VENDOR)/lib/libhdr_tm.so \
+    $(LOCAL_PATH)/gpu/lib/libllvm-glnext.so:$(TARGET_COPY_OUT_VENDOR)/lib/libllvm-glnext.so \
+    $(LOCAL_PATH)/gpu/lib/libllvm-qcom.so:$(TARGET_COPY_OUT_VENDOR)/lib/libllvm-qcom.so \
+    $(LOCAL_PATH)/gpu/lib/libOpenCL.so:$(TARGET_COPY_OUT_VENDOR)/lib/libOpenCL.so \
+    $(LOCAL_PATH)/gpu/lib/librs_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib/librs_adreno.so \
+    $(LOCAL_PATH)/gpu/lib/librs_adreno_sha1.so:$(TARGET_COPY_OUT_VENDOR)/lib/librs_adreno_sha1.so \
+    $(LOCAL_PATH)/gpu/lib/libRSDriver_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib/libRSDriver_adreno.so \
+    $(LOCAL_PATH)/gpu/lib/libscalar.so:$(TARGET_COPY_OUT_VENDOR)/lib/libscalar.so \
+    $(LOCAL_PATH)/gpu/lib/libsdm-color.so:$(TARGET_COPY_OUT_VENDOR)/lib/libsdm-color.so \
+    $(LOCAL_PATH)/gpu/lib/libsdm-diag.so:$(TARGET_COPY_OUT_VENDOR)/lib/libsdm-diag.so \
+    $(LOCAL_PATH)/gpu/lib/libsdmextension.so:$(TARGET_COPY_OUT_VENDOR)/lib/libsdmextension.so \
+    $(LOCAL_PATH)/gpu/lib/libtinyxml2_1.so:$(TARGET_COPY_OUT_VENDOR)/lib/libtinyxml2_1.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/eglSubDriverAndroid.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/eglSubDriverAndroid.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/libEGL_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/libEGL_adreno.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/libGLESv1_CM_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/libGLESv1_CM_adreno.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/libGLESv2_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/libGLESv2_adreno.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/libq3dtools_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/libq3dtools_adreno.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/libq3dtools_esx.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/libq3dtools_esx.so \
+    $(LOCAL_PATH)/gpu/lib64/egl/libQTapGLES.so:$(TARGET_COPY_OUT_VENDOR)/lib64/egl/libQTapGLES.so \
+    $(LOCAL_PATH)/gpu/lib64/hw/vulkan.msm8996.so:$(TARGET_COPY_OUT_VENDOR)/lib64/hw/vulkan.msm8996.so \
+    $(LOCAL_PATH)/gpu/lib64/libadreno_utils.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libadreno_utils.so \
+    $(LOCAL_PATH)/gpu/lib64/libbccQTI.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libbccQTI.so \
+    $(LOCAL_PATH)/gpu/lib64/libC2D2.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libC2D2.so \
+    $(LOCAL_PATH)/gpu/lib64/libc2d30_bltlib.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libc2d30_bltlib.so \
+    $(LOCAL_PATH)/gpu/lib64/libCB.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libCB.so \
+    $(LOCAL_PATH)/gpu/lib64/libdiag.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libdiag.so \
+    $(LOCAL_PATH)/gpu/lib64/libgsl.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libgsl.so \
+    $(LOCAL_PATH)/gpu/lib64/libhdr_tm.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libhdr_tm.so \
+    $(LOCAL_PATH)/gpu/lib64/libllvm-glnext.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libllvm-glnext.so \
+    $(LOCAL_PATH)/gpu/lib64/libllvm-qcom.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libllvm-qcom.so \
+    $(LOCAL_PATH)/gpu/lib64/libOpenCL.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libOpenCL.so \
+    $(LOCAL_PATH)/gpu/lib64/librs_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib64/librs_adreno.so \
+    $(LOCAL_PATH)/gpu/lib64/librs_adreno_sha1.so:$(TARGET_COPY_OUT_VENDOR)/lib64/librs_adreno_sha1.so \
+    $(LOCAL_PATH)/gpu/lib64/libRSDriver_adreno.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libRSDriver_adreno.so \
+    $(LOCAL_PATH)/gpu/lib64/libscalar.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libscalar.so \
+    $(LOCAL_PATH)/gpu/lib64/libsdm-color.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libsdm-color.so \
+    $(LOCAL_PATH)/gpu/lib64/libsdm-diag.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libsdm-diag.so \
+    $(LOCAL_PATH)/gpu/lib64/libsdm-disp-vndapis.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libsdm-disp-vndapis.so \
+    $(LOCAL_PATH)/gpu/lib64/libsdmextension.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libsdmextension.so \
+    $(LOCAL_PATH)/gpu/lib64/libtinyxml2_1.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libtinyxml2_1.so

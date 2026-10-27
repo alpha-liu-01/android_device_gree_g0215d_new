@@ -1,0 +1,109 @@
+on early-init
+    chmod 0666 /dev/kgsl-3d0
+    chown system system /dev/kgsl-3d0
+    chmod 0666 /dev/ion
+    chown system system /dev/ion
+    chmod 0664 /dev/mdss_rotator
+    chown system graphics /dev/mdss_rotator
+
+on fs
+    mount_all /vendor/etc/fstab.qcom
+
+on post-fs
+    start bootlog
+
+on post-fs-data
+    mkdir /data/vendor/display 0770 system graphics
+    mkdir /data/vendor/wifi 0770 wifi wifi
+    mkdir /data/vendor/wifi/wpa 0770 wifi wifi
+    mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi
+
+on boot
+    chmod 0666 /dev/kgsl-3d0
+    chown system system /dev/kgsl-3d0
+    chmod 0666 /dev/ion
+    chown system system /dev/ion
+    chmod 0664 /dev/mdss_rotator
+    chown system graphics /dev/mdss_rotator
+    chown system graphics /sys/class/graphics/fb0/idle_time
+    chown system graphics /sys/class/graphics/fb0/dynamic_fps
+    chown system graphics /sys/class/graphics/fb0/dyn_pu
+    chown system graphics /sys/class/graphics/fb0/modes
+    chown system graphics /sys/class/graphics/fb0/mode
+    chown system graphics /sys/class/graphics/fb0/msm_cmd_autorefresh_en
+    chown system graphics /sys/class/graphics/fb0/lineptr_value
+    chown system graphics /sys/class/graphics/fb0/msm_fb_persist_mode
+    chmod 0664 /sys/class/graphics/fb0/idle_time
+    chmod 0664 /sys/class/graphics/fb0/dynamic_fps
+    chmod 0664 /sys/class/graphics/fb0/dyn_pu
+    chmod 0664 /sys/class/graphics/fb0/modes
+    chmod 0664 /sys/class/graphics/fb0/mode
+    chmod 0664 /sys/class/graphics/fb0/msm_cmd_autorefresh_en
+    chmod 0664 /sys/class/graphics/fb0/lineptr_value
+    chmod 0664 /sys/class/graphics/fb0/msm_fb_persist_mode
+    start panel_hold
+    chown wifi wifi /sys/module/wlan/parameters/fwpath
+    chmod 0660 /sys/module/wlan/parameters/fwpath
+    mount configfs none /config
+    mkdir /config/usb_gadget/g1 0770 shell shell
+    mkdir /config/usb_gadget/g1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/bcdUSB 0x0200
+    write /config/usb_gadget/g1/os_desc/use 1
+    write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+    write /config/usb_gadget/g1/strings/0x409/manufacturer ${ro.product.manufacturer}
+    write /config/usb_gadget/g1/strings/0x409/product ${ro.product.model}
+    mkdir /config/usb_gadget/g1/functions/ffs.adb
+    mkdir /config/usb_gadget/g1/functions/mtp.gs0
+    mkdir /config/usb_gadget/g1/functions/ptp.gs1
+    mkdir /config/usb_gadget/g1/functions/accessory.gs2
+    mkdir /config/usb_gadget/g1/functions/audio_source.gs3
+    mkdir /config/usb_gadget/g1/functions/midi.gs5
+    mkdir /config/usb_gadget/g1/configs/b.1 0770 shell shell
+    mkdir /config/usb_gadget/g1/configs/b.1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/configs/b.1/MaxPower 900
+    write /config/usb_gadget/g1/os_desc/b_vendor_code 0x1
+    write /config/usb_gadget/g1/os_desc/qw_sign "MSFT100"
+    symlink /config/usb_gadget/g1/configs/b.1 /config/usb_gadget/g1/os_desc/b.1
+    mkdir /dev/usb-ffs 0775 shell system
+    mkdir /dev/usb-ffs/adb 0770 shell system
+    mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee7
+    setprop sys.usb.controller 6a00000.dwc3
+    setprop sys.usb.configfs 1
+    setprop persist.sys.usb.config mtp,adb
+    setprop sys.usb.config mtp,adb
+
+on property:persist.sys.usb.config=mtp
+    setprop persist.sys.usb.config mtp,adb
+
+on property:persist.sys.usb.config=none
+    setprop persist.sys.usb.config mtp,adb
+
+on property:sys.usb.config=adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee7
+
+on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee2
+
+on property:sys.boot_completed=1
+    exec - system system -- /system/bin/settings put global adb_enabled 1
+    setprop persist.sys.usb.config mtp,adb
+
+service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-logcat.txt
+    user root
+    group system root log
+    disabled
+
+service atmel_tp_init /system/bin/sh /system/bin/init.atmel_ts.sh
+    class main
+    user root
+    oneshot
+
+service panel_hold /system/bin/sh /system/bin/panel_hold.sh
+    user root
+    group root
+    disabled
+    oneshot

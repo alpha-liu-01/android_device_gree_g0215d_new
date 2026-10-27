@@ -354,21 +354,31 @@ adb shell rm /tmp/boot.img
 
 过程记在 `docs/g0215d-phase-2.md`。内核在 `alpha-liu-01/android_kernel_gree_g0215d` 的 `g0215d` 分支，基线是小米 `lineage-22.2` 的 `535079d2fa36`。触摸驱动是乐视的 `atmel_mxt_ts_letv.c`。
 
-- 以 `LineageOS/android_kernel_xiaomi_msm8996` 的 `lineage-22.2` 为基线 fork。需要一加 3 某段历史时再从 `android_kernel_oneplus_msm8996` 摘提交，不从一加 3 的 defconfig 整份覆盖
-- defconfig 从 donor 的 MSM8996 defconfig 长出来，再按 `docs/reference/g0215d-3.18.20-perf.config` 打开格力板级驱动。`CONFIG_WIL6210` 在原厂配置里是模块，但本次启动没有加载它，也没有对应的设备树节点，新 defconfig 里先不要为它浪费时间
-- 维持 `Image.gz-dtb`、4 KB 页、现有 boot 镜像偏移
-- 先做 recovery 或 `fastboot boot` 的 boot 镜像。成功标准：1440x2560 方向正确、Atmel 触摸可用、adb 出现、USB 不断连
-- 此阶段系统可以是 donor 的 recovery，不必是 Android 16
+这一阶段已经完成。当前内核是 `#17`（4.4.302，Mon Oct 26 15:43:24 EDT 2026）。`fastboot boot` 在这台 bootloader 上不可用，验证走的是 recovery 分区，boot 分区没有写。
 
-完成标准：自编译内核在不刷写 boot 分区的前提下，能点亮这块倒装屏并完成一次触摸和 adb。
+- 基线是 `LineageOS/android_kernel_xiaomi_msm8996` 的 `lineage-22.2`，私有仓库只推了 `g0215d`。没有用一加 3 的 defconfig 覆盖
+- defconfig 从 donor 的 MSM8996 配置长出来。`CONFIG_WIL6210` 没有打开
+- 镜像是只带格力 DTB 的 `Image.gz-dtb`，4 KB 页，内核 `0x80008000`，ramdisk `0x81000000`，tags `0x80000100`。页对齐后内核落在 `0x80c36000`
+- recovery 里 1440×2560 的 TWRP 连续三次重启没有横纹，Atmel 触摸可用，adb 状态是 `recovery`，USB 能保持到读完日志
+- 用户态仍是原来的 TWRP ramdisk，加上 `phase2-debug.sh`。还不是 Android 16
 
-### 阶段 3：第一套可交互系统（Android 11 或 13）
+完成标准：自编译内核在不刷写 boot 分区的前提下，能点亮这块倒装屏并完成一次触摸和 adb。`#17` 已超过“一次”。
 
-用阶段 2 的内核，用户态先停在 Lineage 18.1 或 20/21，而不是直接 22.2。原因是显示、触摸、RIL、相机出问题时，日志对应的 HAL 层数更少，便于确认板子本身。
+留到阶段 3 再看、不再为它们编 recovery 的四件事：启动日志里仍有 `0x34`/`0x28` 的 DMA 超时；电源键熄屏再亮屏要等用户态自己管 blank；触摸配置仍是芯片 NVM 的 `53a963`，原厂 raw 要等 `/system` 挂上；系统 boot 仍是原厂 3.18。
 
-建议的验收顺序：启动动画、桌面、触摸、Wi-Fi、扬声器和听筒、蓝牙、传感器、双卡识别、数据、充电和休眠唤醒。相机和指纹允许在这一阶段只有“进程活着”。SELinux 保持 permissive，同时保存 denial。
+### 阶段 3：第一套可交互系统（Lineage 18.1）
 
-如果这一阶段连桌面都进不去，问题在阶段 2 的板级移植，继续升级用户态没有信息量。
+过程记在 `docs/g0215d-phase-3.md`。步骤 1 到 6 已结束，当前处于步骤 7（桌面硬件逐项验收与修复）。18.1 的 system 已写入，boot 分区保持原厂 `boot-debug4.img`，recovery 是 `#17`。清空 `sda9` 末尾 16 KB FDE footer 并格式化为未加密 ext4 后，系统已于 2026-10-27 首次走完 `LineageSetupWizard` 进入 `Launcher3` 桌面与 `Settings`，180 度倒装方向与 Atmel 触摸均正常。
+
+针对首次进桌面暴露的四个问题（~2 FPS 帧率与滚动时双 DSI 半屏变黑闪烁、391 次 `hwservicemanager` 1 秒超时、USB 仅充电无 ADB、Wi-Fi 未启动），已完成根因定位并将修复推入 `/system`：
+1. `gralloc.default` 改为单帧 `ashmem` 缓存后台缓冲 + `memcpy` + `FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE` 同步提交，消除 Write-Combine 显存直绘慢与双 DSI 扫描清黑撕裂；
+2. 补齐 `/vendor/etc/vintf/manifest.xml`，消除 391 次 `waitForHwService` 1 秒阻塞；
+3. `init.gree.rc` 接好 `6a00000.dwc3` USB ConfigFS `ffs.adb` 并设 `ro.adb.secure=0`；
+4. 实现 `lights.msm8996` + `light@2.0-service` 接管背光与 `fb0/blank` 休眠唤醒；
+5. 提取 `modem`/`persist` 分区中的 QCA6174 固件（含 `otp30.bin`、`qwlan30.bin`、`bdwlan30.bin`、`wlan_mac.bin`）并推入 `android.hardware.wifi@1.0-service` 与 `wpa_supplicant`（已在 `#17` 内核下实测生成 `wlan0`）。
+剩余步骤 7 子阶段按 7A（修复 `panel_hold` 引起的锁屏 2–3 秒背光重亮、保持 `mtp,adb` 常驻、排查设置网络入口闪退）→ 7B（Adreno 530 GPU 硬件加速 + SDM HWC2，优先级上调至音频前以解决 1–5 FPS 软件渲染卡顿）→ 7C（Tasha + TFA98xx 音频）→ 7D（蓝牙 Rome）→ 7E（SSC 传感器）→ 7F（双卡 RIL）→ 7G（相机/指纹守护进程存活）推进。
+
+完成标准：18.1 桌面可交互。启动画面、无横纹桌面、触摸、adb、电源键熄屏再亮屏、Wi-Fi、音频、蓝牙、传感器、双卡、数据、充电和休眠唤醒都通过。相机和指纹这一阶段只要求进程还在。SELinux 保持 permissive，denial 有记录。
 
 ### 阶段 4：分区改造，然后对齐小米 lineage-22.2
 
