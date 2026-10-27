@@ -1,0 +1,22 @@
+// This phone has no /sys/class/dual_role_usb, so the AOSP USB HAL reports
+// zero ports and Settings disables every USB mode. This service reports the
+// single port from the extcon cable state instead.
+
+cc_binary {
+    name: "android.hardware.usb@1.0-service.gree",
+    defaults: ["hidl_defaults"],
+    init_rc: ["android.hardware.usb@1.0-service.gree.rc"],
+    relative_install_path: "hw",
+    vendor: true,
+    srcs: [
+        "service.cpp",
+        "Usb.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+        "android.hardware.usb@1.0",
+    ],
+}

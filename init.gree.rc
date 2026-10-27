@@ -100,23 +100,48 @@ on boot
     setprop persist.sys.usb.config mtp,adb
     setprop sys.usb.config mtp,adb
 
-on property:persist.sys.usb.config=mtp
-    setprop persist.sys.usb.config mtp,adb
-
-on property:persist.sys.usb.config=none
-    setprop persist.sys.usb.config mtp,adb
-
+# init.usb.configfs.rc links the functions. These only set the Google
+# product ids, which the legacy init.usb.rc skips while configfs=1.
+# Do not rewrite persist.sys.usb.config back to mtp,adb: that fights a
+# mode change (ptp, midi, rndis, or charging). adb stays on via adb_enabled.
 on property:sys.usb.config=adb && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/idVendor 0x18d1
     write /config/usb_gadget/g1/idProduct 0x4ee7
+
+on property:sys.usb.config=mtp && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee1
 
 on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/idVendor 0x18d1
     write /config/usb_gadget/g1/idProduct 0x4ee2
 
+on property:sys.usb.config=rndis && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee3
+
+on property:sys.usb.config=rndis,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee4
+
+on property:sys.usb.config=ptp && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee5
+
+on property:sys.usb.config=ptp,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee6
+
+on property:sys.usb.config=midi && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee8
+
+on property:sys.usb.config=midi,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idVendor 0x18d1
+    write /config/usb_gadget/g1/idProduct 0x4ee9
+
 on property:sys.boot_completed=1
     exec - system system -- /system/bin/settings put global adb_enabled 1
-    setprop persist.sys.usb.config mtp,adb
 
 # libbt-vendor sets wc_transport.start_hci once the firmware is loaded.
 on property:wc_transport.start_hci=true

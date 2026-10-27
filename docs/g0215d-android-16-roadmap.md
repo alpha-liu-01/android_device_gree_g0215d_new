@@ -376,9 +376,9 @@ adb shell rm /tmp/boot.img
 3. `init.gree.rc` 接好 `6a00000.dwc3` USB ConfigFS `ffs.adb` 并设 `ro.adb.secure=0`；
 4. 实现 `lights.msm8996` + `light@2.0-service` 接管背光与 `fb0/blank` 休眠唤醒；
 5. 提取 `modem`/`persist` 分区中的 QCA6174 固件（含 `otp30.bin`、`qwlan30.bin`、`bdwlan30.bin`、`wlan_mac.bin`）并推入 `android.hardware.wifi@1.0-service` 与 `wpa_supplicant`（已在 `#17` 内核下实测生成 `wlan0`）。
-剩余步骤 7 子阶段按 7A（修复 `panel_hold` 引起的锁屏 2–3 秒背光重亮、保持 `mtp,adb` 常驻、排查设置网络入口闪退）→ 7B（Adreno 530 GPU 硬件加速 + SDM HWC2，优先级上调至音频前以解决 1–5 FPS 软件渲染卡顿）→ 7C（Tasha + TFA98xx 音频）→ 7D（蓝牙 Rome）→ 7E（SSC 传感器）→ 7F（双卡 RIL）→ 7G（相机/指纹守护进程存活）推进。
+2026-10-27：交互项已经通过（显示、触摸、按键、Wi-Fi、音频、蓝牙、传感器、第一张卡的驻网和通话、休眠唤醒）。目标改为先把 18.1 做成日常可交付的系统，再进入阶段 4。7I USB 功能切换已通过（文件传输双向，PTP、MIDI、网络共享能枚举）。剩余顺序是 7J 振动（整机无振动，含 4.4 内核的 TWRP；TWRP 本身以后再说）→ 7K 硬件视频和音频编解码 → 7L 相机出图 → 7M 指纹解锁。7K 没有记录之前不开始 7L。原来的 7G「相机和指纹只要求进程还在」作废。细节和验收标准在 `docs/g0215d-phase-3.md` 的步骤 7。
 
-完成标准：18.1 桌面可交互。启动画面、无横纹桌面、触摸、adb、电源键熄屏再亮屏、Wi-Fi、音频、蓝牙、传感器、双卡、数据、充电和休眠唤醒都通过。相机和指纹这一阶段只要求进程还在。SELinux 保持 permissive，denial 有记录。
+完成标准：18.1 可以日常使用。在交互项之外，USB 文件传输、振动、硬件编解码、前后摄拍照和短视频、指纹录入与解锁都通过。短信、VoLTE、第二张卡、NFC、红外、FM、SELinux enforcing 不挡住收口。SELinux 保持 permissive，denial 有记录。
 
 ### 阶段 4：分区改造，然后对齐小米 lineage-22.2
 
@@ -393,10 +393,10 @@ adb shell rm /tmp/boot.img
 
 22.2 到 Android 16（Lineage 23 这一代，若届时 msm8996-common 已有人先升，就跟随那次升级）是一次平台跟随，不再是一次板级考古。跟随内容主要是 HAL 版本、sepolicy、bpf 和启动脚本。内核仍是这颗 3.18，只吸收 Android 16 新增加的、而且小米或一加树还没带上的补丁。
 
-这一阶段才把“全部硬件”收口：
+相机出图和指纹解锁在阶段 3 的 18.1 上就要能用。这一阶段在新平台上复查它们，并收口阶段 3 故意留下的硬件：
 
-- 相机前后摄、对焦、闪光灯、方向
-- Goodix 录入与解锁
+- 相机前后摄、对焦、闪光灯、方向（复查）
+- Goodix 录入与解锁（复查）
 - NFC 读写；eSE 单独记录结果
 - 红外，包括格力遥控需要的原始码发送
 - SI4705 FM

@@ -75,6 +75,7 @@ PRODUCT_PACKAGES += \
     audio.bluetooth.default \
     android.hardware.bluetooth@1.0-impl \
     android.hardware.bluetooth@1.0-service \
+    android.hardware.usb@1.0-service.gree \
     libbt-vendor \
     wcnss_filter \
     libacdbloader \

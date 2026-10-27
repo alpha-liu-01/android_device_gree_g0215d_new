@@ -2,7 +2,7 @@
 
 日期：2026-10-26。阶段 2 已收口。本文件只记阶段 3 的推荐步骤，以及以后做的时候要补的实现笔记和事件。路线图仍是 `docs/g0215d-android-16-roadmap.md`。
 
-完成标准：Lineage 18.1 的桌面可交互。启动画面、无横纹桌面、触摸、adb、电源键熄屏再亮屏、Wi-Fi、扬声器和听筒、蓝牙、传感器、双卡、数据、充电和休眠唤醒都通过。相机和指纹这一阶段只要求进程还在。SELinux 保持 permissive，denial 有记录。刷 boot 之前原厂 boot 已另存。日常进 recovery 用 2016-10-07 那份能挂上 data 的镜像。`#17` 留在硬盘上，只做内核画面测试。
+完成标准（2026-10-27 调整）：18.1 先做成一套可以日常使用的系统，然后才进入阶段 4。交互桌面已经达到，不再是收口标准。收口要加上 USB 文件传输、振动、硬件视频和音频编解码、前后摄拍照和短视频、指纹录入与解锁。SELinux 保持 permissive，denial 有记录。短信、VoLTE、第二张卡、通话回声消除、蓝牙耳机通话、NFC、红外、FM、TWRP 的振动、重分区都不挡住这次收口。刷 boot 之前原厂 boot 已另存。日常进 recovery 用 2016-10-07 那份能挂上 data 的镜像。`#17` 留在硬盘上，只做内核画面测试。
 
 步骤 1 到步骤 5 已结束。背光已经能亮。一次误开机里 SurfaceFlinger 不再崩溃，翻页 ioctl 因为句柄里的虚拟地址被改写而失败。`gralloc.default` 已改为把本进程映射留在进程内，翻页改用句柄里的字节 `offset`。随后一次开机里，`panel_hold.sh` 在 composer 打开 `fb0` 的同时写了 `blank`，两边都没有返回。脚本加上 8 秒等待后，composer 和 SurfaceFlinger 都完成初始化并进入了开机动画；将 `fb_post` 改为 `FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE` 调 `FBIOPUT_VSCREENINFO` 并补上 `libaudiohal` 6.0 回退后，屏幕已能看到开机动画，`audioserver` 也不再崩溃。动画停住是因为系统缺少 `android.hardware.wifi.xml` 等硬件特性权限文件，`SystemUI` 在 `provideWifiManager` 返回空指针崩溃，进而触发 `RescueParty` 调用尚未加载元数据的 `ModuleInfoProvider.getModuleInfo`（加密最小框架下 `ModuleMetadata` 非 `coreApp` 被跳过），导致 `system_server` 反复重启（共 18 次）。硬件特性权限 XML 已补齐，`ModuleInfoProvider` 在缺少元数据包时也已将 `mMetadataLoaded` 置为 `true`。重启后系统顺利走过开机动画并显示出 `CryptKeeper` 解密失败界面（Holo 样式），画面上下颠倒对应 `persist.panel.inversemounted=180`（Android 11 对应 `ro.surface_flinger.primary_display_orientation=ORIENTATION_180`），同时触发了步骤 1「18.1 若要求加密升级或格式化 data，先停」的停机点。从这份 recovery 执行重启到 bootloader 会直接重新开机，进不了 fastboot。触摸芯片曾停在引导模式，原厂固件 `A4_2F_4.0_05.fw` 已写回，`atmel_mxt_ts` 已重新绑定。
 
@@ -288,20 +288,29 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 
 ## 步骤 7：验收
 
-推荐按这个顺序，前一项没有记录就先不跳到下一项：
+交互项已经有记录，按下面的剩余顺序继续。前一项没有记录就先不跳到下一项。
+
+已通过，本阶段不再重做：
 
 1. 启动动画
 2. 桌面，无横纹
-3. 触摸。看 `config_csum`。原厂 raw 写进去之后，记下新值。若仍是 `53a963`，记在事件里，验收继续
+3. 触摸。`config_csum` 仍是 `53a963`，验收当时就继续了
 4. Wi-Fi
-5. 扬声器和听筒
-6. 蓝牙
-7. 传感器。SSC 校准在 persist 里，这一步不刷 persist
-8. 双卡识别
-9. 数据
-10. 充电和休眠唤醒
+5. 扬声器、听筒、免提通话
+6. 蓝牙（开关、扫描、配对、A2DP）
+7. 传感器。SSC 校准在 persist 里，没有刷 persist
+8. 第一张卡识别、驻网、蜂窝数据、听筒和免提通话
+9. 休眠唤醒（背光）
+10. USB 功能切换。文件传输双向、PTP、MIDI、USB 网络共享都切换过，见 7I
 
-相机和指纹允许只有进程活着。出图和录入解锁留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+还没做，按这个优先级：
+
+11. **7J 振动**。整机没有振动，带 4.4 内核的新 TWRP 也没有，所以先看内核，不是先看 Android 的 vibrator HAL。板级是 DRV2605（`CONFIG_INPUT_DRV2605_HAPTICS`）。验收：系统里来电或设置中的振动能感觉到。TWRP 里的振动以后再说，不在这项。
+12. **7K 硬件视频和音频编解码**。这是相机的前提，不过这一关就不开始 7L。7C 只补了 `media_codecs.xml` 让软件播放能出声，Venus 和音频 DSP 编解码当时明确留在外面。视频走 Venus，音频 offload 在 ADSP。验收：播一段视频时用的是硬件解码器，不是 `OMX.google`；硬件编码器能写出一个文件；一段 AAC（或这台机器上有的音频格式）走硬件解码。
+13. **7L 相机**。旧的 7G「进程还在即可、出图留到阶段 5」作废。前后摄都能预览、拍照，并录一段短视频。传感器以 `msm8996_camera_G0215D.xml` 里的 `s5k3p3`、`ov8858` 为准。
+14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。
+
+不挡住收口，做了就记、不做也不停：短信、VoLTE/IMS、第二张卡、通话后回 LTE 的等待、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -408,7 +417,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **使用者验证**：扫描能看到附近设备；配对能完成，状态是已连接；播放测试音只从蓝牙耳机出声。刚开机一分钟内有爆音，等系统安静下来后再测，两三分钟后爆音消失，干净。判断是开机初期的负载，不是 UART 或固件问题。
     - **整镜像**：这一步按完整构建验证过。`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7d.img`（稀疏格式，1683460640 字节，`sha256 fed6b2584e1729b76bd9fa5a7fc20b1eef1dd2b3aca44d5a33d8b62822bb59f6`）里有 `/bt_firmware` 符号链接，`wcnss_filter` 是 0755，`bdaddr` 是 0644，两个蓝牙 HAL 在 vintf manifest 里。这份镜像没有刷。boot 和内核这一步都没动，仍是 `boot-audio9.img`。
     - **没做**：HFP/SCO（通话走蓝牙耳机）和蓝牙电话音频要等 7F 一起验。BLE 外设、文件传输 OPP、蓝牙 tethering、LDAC/aptX 没有测。SELinux 仍是 permissive，开机日志里有 `hal_bluetooth_default` 写 `rfkill/state`、设置 `wc_transport.*` 属性、写 `/data/misc/bluedroid/bt_fw_version.txt` 的 denial，转 enforcing 之前要补策略。`libbtnv` 没用，地址固定为原厂那个值。
-    - **顺带发现、不属于 7D**：使用者说无法把手机切到 MTP 传文件，这是另一个问题，另外处理。
+    - **顺带发现、不属于 7D**：使用者说无法把手机切到 MTP 传文件。当时所有 USB 模式都是灰的，停在仅充电。记到 7I，不在蓝牙这一步处理。
   - **7E（传感器 SSC：BMI160、AK09915、RPR0521、LPS22HB、SHTC1 已在冷启动后列出，并且有事件）**：
     - **现象**：修复前 `dumpsys sensorservice` 是 `No Sensors on the device`，`devInitCheck : -19`。机器上没有传感器 HAL，SLPI 停在 `OFFLINING`。
     - **硬件**：传感器不在 ADSP 上，在 SLPI。固件是 modem 分区里的 `slpi.mdt`（`/vendor/firmware_mnt/image/slpi.*`）。内核 `drivers/sensors/sensors_ssc.c` 提供 `/sys/kernel/boot_slpi/boot`（写 `1` 加载）和 `/dev/sensors`（228,0，`system:system` 660）。`rmt_storage`、`tftp_server` 在 7F 已经在跑。`radio/mkrfs.sh` 的子系统列表加上 `slpi`，给 SLPI 建了和 modem、ADSP 一样的 rfs 符号链接。**不要往 `boot_slpi` 写 `0`**：`restart_level` 是 `RELATED`，卸掉 SLPI 会把整台手机重启。
@@ -453,7 +462,14 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **内核和 boot**：没有改。排查期间为 `q6voice.c` 临时加的 `#define DEBUG 1` 已 `git checkout` 回退，没有提交。手机当时跑的是带这行调试的 `boot-voicedbg.img`，除多出一堆 `voice_itr_get_next_session` 日志外没有区别，需要换回 `boot-audio9.img`。
     - **整镜像**：`m systemimage` 编出 `/run/media/alpha/YMTC/g0215d/boot-test/system-7f2.img`（稀疏格式，1697907232 字节，`sha256 66136fc6f2fc0c2fea52094d6f42a59ae4d469e34f746114b7ac735be6f3c3d2`），含新的 `audio.primary.msm8996.so`、`mixer_paths_tasha.xml`、`audio_platform_info.xml`，还原了真正的 `libacdbloader.so`（调试期间推过测试版）。实机上这三份已经手动推过并验证；镜像没有刷。
     - **没做、没通过的**：回声和降噪（拓扑关掉了）、耳机和蓝牙通话路径（只改了 mixer，没有测）、第二张卡通话（`voicemmode2-call`，只照第一张卡的办法改了 mixer）、VoLTE/IMS、短信、LTE 上的数据速度。ADSP 为什么拒绝 `0x10F89` / `0x10F8A` 这对拓扑还没有查清，查清之后可以去掉 `no-topology` 绕过，把回声消除找回来。
-  - **7G（相机与 Goodix GF816M 指纹进程存活）**：检查 `mm-qcamera-daemon` 与 `gx_fpd` 守护进程启动状态，记录 SELinux denial 并归档。
+  - **7I（USB 功能切换：文件传输双向已通过，PTP、MIDI、网络共享都能枚举）**：
+    - **现象**：设置里的 USB 模式停在「仅充电」，文件传输、USB 网络共享、MIDI、PTP 全部是灰的。adb 正常，`sys.usb.config` 实际是 `adb`，gadget 上只挂了 `ffs.adb`。`dumpsys usb` 的 `port_manager` 是空的。
+    - **根因**：Android 11 的设置在端口没报 `connected` 或 data role 不是 device 时，把整组功能禁用。这台机器没有 `/sys/class/dual_role_usb`，AOSP 的 USB HAL 只扫这个目录，所以一个端口都报不出来。`/sys/class/typec` 也是空的。线的状态在 `extcon0`：`USB=1` 是设备模式。7A 为了保住 adb，把 `persist.sys.usb.config` 的 `mtp` 和 `none` 写回 `mtp,adb`，开机完成时再写一次。这会挡住以后把模式留在充电或纯 MTP，但这次选项是灰的，不是被它拉回去的。
+    - **端口 HAL**：`usb/` 里的 `android.hardware.usb@1.0-service.gree`。读 `extcon0` 的 `USB=1`（读不到就看 `android_usb` 的 `CONFIGURED`/`CONNECTED`），上报 `port0`：模式 UFP、data role device、power role sink，三个 `canChange` 都是 false。`supportedModes` 必须等于 `currentMode`。`UsbPortManager` 对非 DRP 端口会把不一致的 current mode 清成 0，端口又变成未连接。拔线后报 NONE。`manifest.xml` 声明 `android.hardware.usb` 1.0 `IUsb/default`。不要再装一份同名 vintf fragment，和主 manifest 撞了 `hwservicemanager` 会拒绝加载。依赖的 `android.hardware.usb@1.0.so` 在 `/system/lib64`，厂商进程找得到。
+    - **产品号**：`init.usb.configfs.rc` 负责挂 function，但 `configfs=1` 时原来的 `init.usb.rc` 不写产品号。`init.gree.rc` 补上 Google 的 id：`mtp` `4ee1`、`mtp,adb` `4ee2`、`rndis` `4ee3`、`rndis,adb` `4ee4`、`ptp` `4ee5`、`ptp,adb` `4ee6`、`adb` `4ee7`、`midi` `4ee8`、`midi,adb` `4ee9`。去掉那三条把 `persist.sys.usb.config` 写回 `mtp,adb` 的规则。adb 仍由 `adb_enabled=1` 保持，框架会在所选功能后面加上 `,adb`。
+    - **实机**：冷启动后 `vendor.usb-hal-1-0` 在跑，端口 `connected`、`data_role=device`。文件传输：主机看到 `18d1:4ee2`（MTP + debug），从手机读出 `usb-7i-test.txt` 内容 `g0215d-7i`，从电脑写入 `usb-7i-to-phone.txt`，手机上读到 `host-to-phone`。PTP：`18d1:4ee6`，接口类 6 Still Image。MIDI：`18d1:4ee9`。网络共享：`18d1:4ee4`，主机出现一块 `LOWER_UP` 的网卡，切回 MTP 后网卡消失。测完把解锁后的默认功能设成 `mtp`，冷启动后仍是 `mtp,adb`（仅充电不再是默认）。测试文件已删。没有改内核。SELinux 仍是 permissive，二进制标签还是 `system_file`，和传感器 HAL 一样，转 enforcing 之前要补域。
+    - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7i.img`（稀疏格式，1699783200 字节，`sha256 f0f7f7f0a0f1f351ccff69a870e86420326685a5f514d79751b68b4c0a038cc2`）。里面有 `android.hardware.usb@1.0-service.gree`、`/system/lib64/android.hardware.usb@1.0.so`，`init.gree.rc` 有 `0x4ee9`，manifest 有 `android.hardware.usb`，没有第二份 USB fragment。这份镜像没有刷。手机上现在跑的是推进去之后的那次启动。内核和 boot 没有改，仍是 `boot-audio9.img`。
+  - **7J、7K、7L、7M**：见上面的剩余顺序。7J 是振动，7K 是硬件编解码，7L 是相机出图，7M 是指纹解锁。7K 没有记录之前不开始 7L。原来的 7G（相机和指纹只要求进程还在）作废。
 
 ### 事件
 
@@ -533,11 +549,23 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 5. **实机**：冷启动 `dumpsys` 看到 BMI160 加速度和陀螺、AK09915、RPR0521 光和接近、LPS22HB、SHTC1 湿度和温度，共 46 个传感器，已经有事件。
 6. **整镜像**：`system-7e.img` 编出来了，`sha256 ff6a9a6bda215bc03465848c50a51641fb28cd9bd29bc2461e74b2f050d25ea0`，没有刷。镜像里 `/persist` 是目录。
 
+同日第十三轮：收口标准从「桌面可交互」改成「18.1 可以日常使用，然后才进入阶段 4」。没有改代码，也没有刷机。
+1. **已通过的交互项**留在原处，不再重做。
+2. **剩余顺序**：7I USB 功能切换，7J 振动，7K 硬件视频和音频编解码，7L 相机出图，7M 指纹解锁。7K 不过就不开始 7L。
+3. **从阶段 5 挪回来的**：前后摄拍照、短视频、指纹录入与解锁。阶段 5 只在新平台上复查，不再是第一次做这些功能的地方。
+4. **不挡住收口**：短信、VoLTE、第二张卡、回声消除、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing、TWRP 的振动。
+
+同日第十四轮：7I USB 功能切换，文件传输双向已通过，PTP、MIDI、网络共享都能枚举，细节见 7I。没有动内核和 boot。
+1. **灰掉的原因**：没有端口 HAL。`dumpsys` 的 `port_manager` 是空的，设置就把功能禁用。不是 7A 那组 `persist.sys.usb.config` 回写造成的，那组回写已经去掉。
+2. **HAL**：`android.hardware.usb@1.0-service.gree` 按 `extcon0` 的 `USB=1` 报 UFP / device / sink。`supportedModes` 和当前模式一致，否则框架把端口清成未连接。
+3. **实机**：MTP 双向拷过文件。PTP 是 Still Image，MIDI 是 `4ee9`，RNDIS 在主机上拉起过网卡。解锁后的默认功能设成 `mtp`。
+4. **整镜像**：`system-7i.img` 编出来了，`sha256 f0f7f7f0a0f1f351ccff69a870e86420326685a5f514d79751b68b4c0a038cc2`，没有刷。
+
 ## 步骤 8：收口
 
-推荐：步骤 7 的十项都有一次通过的记录，相机和指纹的进程状态也记下了，这一阶段就停。下一步才是阶段 4：从 userdata 划出 vendor，再把板级目录接回小米 `lineage-22.2` 的 `msm8996-common`。
+推荐：7I 到 7M 都有一次通过的记录，这一阶段就停。下一步才是阶段 4：从 userdata 划出 vendor，再把板级目录接回小米 `lineage-22.2` 的 `msm8996-common`。
 
-桌面、触摸或蜂窝还没有记录时，不改分区表。
+USB 文件传输、振动、硬件编解码、相机出图或指纹解锁还没有记录时，不改分区表。
 
 ### 实现笔记
 
@@ -550,7 +578,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 如果 DRV2605 没有绑定，允许再编一版内核
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包
