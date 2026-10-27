@@ -71,6 +71,18 @@ AUDIO_USE_LL_AS_PRIMARY_OUTPUT := true
 # device arbitration, audio_extn/utils.c has an unused parameter (-Werror).
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 
+# Bluetooth. QCA6174 "Rome" 3.2 on /dev/ttyHS0. libbt-vendor comes from
+# hardware/qcom-caf/bt and downloads btfw32.tlv / btnv32.bin from
+# /bt_firmware/image. The root is the system image, so the symlink to
+# /vendor/bt_firmware goes there.
+# Gree's old wcnss_filter keeps the unprefixed wc_transport.* properties.
+# No libbtnv: its blob is 32-bit only; the stack's own address is used.
+BOARD_HAVE_BLUETOOTH := true
+BOARD_HAVE_BLUETOOTH_QCOM := true
+BOARD_HAS_QCA_BT_ROME := true
+QCOM_BT_USE_OLD_WCNSS_FILTER := true
+BOARD_ROOT_EXTRA_SYMLINKS += /vendor/bt_firmware:/bt_firmware
+
 # VINTF
 DEVICE_MANIFEST_FILE := $(DEVICE_PATH)/manifest.xml
 
@@ -96,3 +108,4 @@ TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery/recovery.fstab
 
 # SELinux
 include device/qcom/sepolicy-legacy-um/SEPolicy.mk
+BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor

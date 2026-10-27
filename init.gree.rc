@@ -18,8 +18,19 @@ on post-fs-data
     mkdir /data/vendor/wifi/wpa 0770 wifi wifi
     mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi
     mkdir /data/vendor/audio 0770 audio audio
+    mkdir /data/vendor/bluetooth 0770 bluetooth bluetooth
 
 on boot
+    # Bluetooth: the HAL powers the QCA6174 through rfkill0, then libbt-vendor
+    # downloads the firmware over /dev/ttyHS0.
+    chown bluetooth net_bt /sys/class/rfkill/rfkill0/type
+    chown bluetooth net_bt /sys/class/rfkill/rfkill0/state
+    chmod 0660 /sys/class/rfkill/rfkill0/state
+    chown bluetooth net_bt /sys/class/rfkill/rfkill0/device/extldo
+    chmod 0660 /sys/class/rfkill/rfkill0/device/extldo
+    chown bluetooth net_bt /dev/ttyHS0
+    chmod 0660 /dev/ttyHS0
+
     # ADSP firmware is on the modem partition (/vendor/firmware_mnt/image).
     # The sound card registers only after the ADSP and the WCD9335 are up.
     write /sys/kernel/boot_adsp/boot 1
@@ -95,6 +106,19 @@ on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
 on property:sys.boot_completed=1
     exec - system system -- /system/bin/settings put global adb_enabled 1
     setprop persist.sys.usb.config mtp,adb
+
+# libbt-vendor sets wc_transport.start_hci once the firmware is loaded.
+on property:wc_transport.start_hci=true
+    start wcnss_filter
+
+on property:wc_transport.start_hci=false
+    stop wcnss_filter
+
+service wcnss_filter /vendor/bin/wcnss_filter
+    class late_start
+    user bluetooth
+    group bluetooth system
+    disabled
 
 service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-logcat.txt
     user root

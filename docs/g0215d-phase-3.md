@@ -393,7 +393,22 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **实机证明**：声卡 `msm8996-tasha-mtp-snd-card` 约在开机 10 秒注册，系统正常开机。使用者确认：`tinyplay` 1 kHz 测试音清楚；Eleven 播放清楚；音量键有效；Recorder 录下的人声清楚；插耳机后只有耳机出声、两耳都有，拔出时播放暂停。HAL 日志显示扬声器走 `quat_mi2s_rx`，耳机走 `headphones`（`SLIMBUS_6_RX`）。
     - **还没做**：听筒（`handset`）没有单独测，要等 7F 通话时一起验。耳机麦没有测。语音通话、offload、蓝牙 A2DP 和 Venus 硬件编解码不在 7C。日志里还有几条不影响出声的噪声：`Amplifier initialization failed`（Lineage 没有 amp HAL）、找不到 sound trigger 库、缺 `audio_io_policy.conf`、`audio_route` 跳过部分控件。
     - **实机和镜像的差别**：上面的用户态文件都是手动推进实机 `/system` 的，没有重新打 `system.img`。本仓库和 18.1 设备树已经一致，下一次整编会全部带上。
-  - **7D（蓝牙 QCA6174 Rome）**：启用 `android.hardware.bluetooth@1.0-service-qti` 与 `libbt-vendor.so`，提取 `/bt_firmware/image/rampatch_tlv_3.2.tlv` 与 `nvm_tlv_3.2.bin`。
+  - **7D（蓝牙 QCA6174 Rome：开关、扫描、配对、A2DP 都已可用）**：
+    - **现象**：修复前 `com.android.bluetooth` 被手动停用（它在后台循环 abort），Settings 的蓝牙开关没有效果，系统里没有蓝牙 HAL。
+    - **硬件与内核**：芯片是 QCA6174 Rome，ROM 版本 `0x0302`（3.2），走 UART `/dev/ttyHS0`（`7570000.uart`，`msm_serial_hs`），上电由 `bt_qca6174` 节点的 `bt_power` rfkill 管（`rfkill0`，另有 `extldo` 属性）。这些内核已经有，**这一步不改内核**。固件在 `bluetooth` 分区（`sde21`，vfat），挂到 `/vendor/bt_firmware/image/`：`btfw32.tlv`、`btnv32.bin`、`btnv32.b15`。
+    - **没有照搬原厂 `libbt-vendor.so`**：原厂是 Android 6 的 32 位库。18.1 的蓝牙 HAL 是 64 位进程，要 HIDL 版 `android.hardware.bluetooth@1.0`，它再 `dlopen` 厂商库。所以走了和小米 msm8996-common 一样的路：HAL 用 AOSP 自带的 `android.hardware.bluetooth@1.0-impl` / `-service`，厂商库用平台树 `hardware/qcom-caf/bt/libbt-vendor` 从源码编。Rome 的固件下载（`hw_rome.c`）在里面。
+    - **`BoardConfig.mk`**：`BOARD_HAVE_BLUETOOTH`、`BOARD_HAVE_BLUETOOTH_QCOM`、`BOARD_HAS_QCA_BT_ROME` 打开。`QCOM_BT_USE_OLD_WCNSS_FILTER := true`，让 libbt-vendor 用不带 `vendor.` 前缀的 `wc_transport.*` 属性，和原厂 `wcnss_filter` 对上。没有开 `QCOM_BT_USE_BTNV`：原厂 `libbtnv.so` 只有 32 位。
+    - **`wcnss_filter`**：这是 libbt-vendor 下载完固件后由 `wc_transport.start_hci=true` 拉起的 HCI 过滤进程，负责 IBS 睡眠协议和 UART 时钟投票。平台树里没有它的源码，直接用原厂 `system/bin/wcnss_filter`（64 位，Android 6，`NEEDED` 只有 `libdiag` 和基础库，`libdiag.so` 在 `gpu/lib64` 里已装）。放在 `bluetooth/wcnss_filter`，由 `bluetooth/Android.bp` 的 `cc_prebuilt_binary` 装到 `/vendor/bin/wcnss_filter`。原厂 SHA256 `3f7385d4f9f8ba28d89245b70b1a8bf3b1241ab74ad9fc618cac2d4a0e84d3a3`。`init.gree.rc` 加 `service wcnss_filter`（`user bluetooth`，`disabled`），以及 `on property:wc_transport.start_hci=true/false` 起停。
+    - **固件路径**：libbt-vendor 写死读 `/bt_firmware/image/btfw32.tlv`。本机的根就是 system 镜像（第一阶段 init 切根），并且是只读的。启动时 `symlink` 会报 `Read-only file system`，所以改用 `BOARD_ROOT_EXTRA_SYMLINKS += /vendor/bt_firmware:/bt_firmware`，符号链接直接进 system 镜像根。这个链接在 `file_contexts` 里没有标签，`e2fsdroid` 报 `searching for label "/bt_firmware"` 而整镜像编不出来。所以新增 `sepolicy/vendor/file_contexts`：`/bt_firmware(/.*)?  u:object_r:bt_firmware_file:s0`，`BoardConfig.mk` 里用 `BOARD_VENDOR_SEPOLICY_DIRS` 加进去。实机是直接 `mount -o rw,remount /` 后 `ln -s`。
+    - **蓝牙地址**：AOSP HAL 的 `Open` 在没有地址时 `LOG_ALWAYS_FATAL("No Bluetooth Address!")`，HAL 进程每次 abort。地址来源是 `ro.bt.bdaddr_path` 指的文件、`ro.boot.btmacaddr` 或持久属性。本机没有 `/persist/bluetooth`。原厂用 `btnvtool -O` 写 NV，地址在 TWRP 的 data 备份里：`/misc/bluedroid/bt_config.conf` 的 `Address = [redacted]`，和 `wlan_mac.bin` 的 Wi-Fi MAC 相同。所以把它放进 `bluetooth/bdaddr`，装到 `/vendor/etc/bluetooth/bdaddr`，`device.mk` 设 `ro.bt.bdaddr_path` 指向它。蓝牙地址因此和原厂一致，设置里读到 `[redacted]`。libbt-vendor 里 `wc_transport.stack_bdaddr` 显示字节序反过来的 `[redacted]`，这是库内部的 little-endian 写法，不是错。
+    - **属性与权限**：`device.mk` 设 `vendor.qcom.bluetooth.soc=rome`（libbt-vendor 靠它选 Rome 分支）和 `ro.vendor.rfkilldisabled=0`。`init.gree.rc` 的 `on boot` 把 `rfkill0/type`、`state`、`device/extldo` 和 `/dev/ttyHS0` 交给 `bluetooth:net_bt`（0660），和原厂 `init.qcom.rc` 一致；`post-fs-data` 建 `/data/vendor/bluetooth`。`manifest.xml` 加 `android.hardware.bluetooth@1.0::IBluetoothHci/default`。`device.mk` 的包：`android.hardware.bluetooth@1.0-impl`、`-service`、`libbt-vendor`、`wcnss_filter`。
+    - **一个坑：蓝牙 App 仍是停用状态**。`pm enable com.android.bluetooth` 之后要等几秒再重启，否则写盘前就重启，状态会回到 `enabled=3`，系统服务 `Fail to bind to: Intent { act=android.bluetooth.IBluetooth }`。
+    - **实机证明（开机后日志）**：HAL 读到 `Got Factory BDA [redacted]`；`rome_soc_init` 读出 `Product ID 0x8`、`ROM Build 0x0302`、`Chipset Version 0x03020044`；UART 改到更高波特率成功；`File Open (/bt_firmware/image/btfw32.tlv)`，补丁下载，再下 `btnv32.bin`；`wc_transport.soc_initialized=1`，`hci_filter_status=1`，`wcnss_filter` 在跑；`AdapterState` 从 `OFF` 走到 `BLE_ON`、`TURNING_ON`、`ON`，约 1.2 秒。关再开一次也正常（过滤进程停止再启动，`rfkill0/state` 0 → 1）。
+    - **A2DP**：Android 11 用蓝牙音频 HAL 2.0，由已有的 `android.hardware.audio.service` 通过 `android.hardware.bluetooth.audio@2.0-impl` 提供。`device.mk` 加 `android.hardware.bluetooth.audio@2.0-impl`、`audio.bluetooth.default` 和 `bluetooth_audio_policy_configuration.xml`；`audio_policy_configuration.xml` 用 `xi:include` 引入这个 module；`manifest.xml` 加 `android.hardware.bluetooth.audio@2.0::IBluetoothAudioProvidersFactory/default`。实机 `lshal` 看到两个蓝牙 HAL 都注册，`dumpsys media.audio_flinger` 里有输出线程走 `AUDIO_DEVICE_OUT_BLUETOOTH_A2DP`，会话是 `A2DP_SOFTWARE_ENCODING_DATAPATH`，编码器 AAC。
+    - **使用者验证**：扫描能看到附近设备；配对能完成，状态是已连接；播放测试音只从蓝牙耳机出声。刚开机一分钟内有爆音，等系统安静下来后再测，两三分钟后爆音消失，干净。判断是开机初期的负载，不是 UART 或固件问题。
+    - **整镜像**：这一步按完整构建验证过。`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7d.img`（稀疏格式，1683460640 字节，`sha256 fed6b2584e1729b76bd9fa5a7fc20b1eef1dd2b3aca44d5a33d8b62822bb59f6`）里有 `/bt_firmware` 符号链接，`wcnss_filter` 是 0755，`bdaddr` 是 0644，两个蓝牙 HAL 在 vintf manifest 里。这份镜像没有刷。boot 和内核这一步都没动，仍是 `boot-audio9.img`。
+    - **没做**：HFP/SCO（通话走蓝牙耳机）和蓝牙电话音频要等 7F 一起验。BLE 外设、文件传输 OPP、蓝牙 tethering、LDAC/aptX 没有测。SELinux 仍是 permissive，开机日志里有 `hal_bluetooth_default` 写 `rfkill/state`、设置 `wc_transport.*` 属性、写 `/data/misc/bluedroid/bt_fw_version.txt` 的 denial，转 enforcing 之前要补策略。`libbtnv` 没用，地址固定为原厂那个值。
+    - **顺带发现、不属于 7D**：使用者说无法把手机切到 MTP 传文件，这是另一个问题，另外处理。
   - **7E（传感器 SSC / ADSP）**：启动 `rmt_storage`、`tftp_server`、SLPI/ADSP 子系统与 `sensors.ssc.so` + `android.hardware.sensors@1.0-service`，读取 `/persist/sensors` 校准数据，恢复 BMI160、AK09915、RPR0521、LPS22HB、SHTC1。
   - **7F（双卡 RIL 与移动数据）**：挂载 `/firmware`（`MPSS.TH.2.0.c1`），启动 `qmuxd`、`netmgrd`、`rild`（格力 RIL blob + 18.1 `libril` 包装），验证 SIM 卡识别与驻网。
   - **7G（相机与 Goodix GF816M 指纹进程存活）**：检查 `mm-qcamera-daemon` 与 `gx_fpd` 守护进程启动状态，记录 SELinux denial 并归档。
@@ -442,6 +457,13 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **出声**：`tinyplay` 有声而 Android 无声，原因是缺 `media_codecs.xml`。补上之后，再用 `libacdbloader` 垫片接通 ACDB。
 3. **录音与耳机**：主麦改用 MIC BIAS4，`hphl-swh` 改为 1，`config_useDevInputEventForAudioJack` 打开。使用者确认录音和耳机正常，拔耳机时播放暂停。
 4. **内核**：提交为 `79851a82f397` 并推送。boot 镜像是 `boot-audio9.img`，`sha256 16f5843ce7c406eb9951449ffc64c36bd1e18904c30d28ad548315bf4d9b6cee`。这一轮也重编了内核，属于“本阶段不做”里的例外。
+
+同日第九轮：7D 蓝牙，开关、扫描、配对、A2DP 都能用，细节见 7D。没有动内核和 boot。
+1. **HAL 与厂商库**：AOSP `android.hardware.bluetooth@1.0` 加平台树里的 `libbt-vendor`（Rome 固件下载在里面），再加原厂 64 位 `wcnss_filter`。蓝牙 App 从停用恢复。
+2. **`/bt_firmware`**：根是只读的 system 镜像，启动时 `symlink` 失败。改成 `BOARD_ROOT_EXTRA_SYMLINKS`，并为它补 `file_contexts` 标签，否则整镜像的 `e2fsdroid` 过不去。
+3. **蓝牙地址**：AOSP HAL 没有地址就 abort。把 TWRP 备份里原厂的 `[redacted]` 放进 `bluetooth/bdaddr`。
+4. **A2DP**：蓝牙音频 HAL 2.0 加 `audio.bluetooth.default`，policy 引入 `bluetooth_audio_policy_configuration.xml`。使用者确认只从蓝牙耳机出声，开机头一分钟有爆音，之后干净。
+5. **整镜像**：`system-7d.img` 编出来了，`sha256 fed6b2584e1729b76bd9fa5a7fc20b1eef1dd2b3aca44d5a33d8b62822bb59f6`，没有刷。
 
 ## 步骤 8：收口
 

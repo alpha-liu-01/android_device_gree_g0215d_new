@@ -1,0 +1,13 @@
+// Gree's Android 6 HCI filter (64-bit). libbt-vendor starts it through the
+// wc_transport.start_hci property; QCOM_BT_USE_OLD_WCNSS_FILTER in
+// BoardConfig.mk makes libbt-vendor use the same unprefixed property names.
+cc_prebuilt_binary {
+    name: "wcnss_filter",
+    vendor: true,
+    compile_multilib: "64",
+    srcs: ["wcnss_filter"],
+    strip: {
+        none: true,
+    },
+    check_elf_files: false,
+}

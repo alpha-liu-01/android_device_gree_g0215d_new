@@ -2,7 +2,7 @@
 <!-- G0215D primary module for the CAF msm8996 HAL (audio.primary.msm8996).
      Trimmed from hardware/qcom-caf/msm8996/audio/configs/msm8996. Compress
      offload, direct PCM, VoIP, raw/ULL, HDMI and FM are left out until they
-     are brought up; A2DP waits for Bluetooth. -->
+     are brought up. A2DP comes from the Bluetooth audio HAL module below. -->
 <audioPolicyConfiguration version="1.0" xmlns:xi="http://www.w3.org/2001/XInclude">
     <globalConfiguration speaker_drc_enabled="true"/>
 
@@ -128,6 +128,7 @@
             </routes>
         </module>
 
+        <xi:include href="/vendor/etc/bluetooth_audio_policy_configuration.xml"/>
         <xi:include href="/vendor/etc/usb_audio_policy_configuration.xml"/>
         <xi:include href="/vendor/etc/r_submix_audio_policy_configuration.xml"/>
     </modules>
