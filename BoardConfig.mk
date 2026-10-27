@@ -83,6 +83,16 @@ BOARD_HAS_QCA_BT_ROME := true
 QCOM_BT_USE_OLD_WCNSS_FILTER := true
 BOARD_ROOT_EXTRA_SYMLINKS += /vendor/bt_firmware:/bt_firmware
 
+# Telephony. Gree's 64-bit Android 6 QCRIL (libril-qc-qmi-1.so) is loaded by
+# the 18.1 rild. Dual SIM there is one rild per SIM (rild, rild -c 2), each
+# with its own RIL_Env, so libril must keep the single-slot 3-argument
+# callbacks: no SIM_COUNT=2. Old MNC encoding of that era.
+# The modem daemons (rmt_storage, tftp_server) use /persist and
+# /dev/block/bootdevice, which the stock image provided.
+TARGET_USES_OLD_MNC_FORMAT := true
+BOARD_ROOT_EXTRA_SYMLINKS += /mnt/vendor/persist:/persist
+BOARD_ROOT_EXTRA_SYMLINKS += /vendor/firmware_mnt:/firmware
+
 # VINTF
 DEVICE_MANIFEST_FILE := $(DEVICE_PATH)/manifest.xml
 

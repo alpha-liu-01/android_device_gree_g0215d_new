@@ -1,0 +1,105 @@
+# Telephony for the MSM8996 modem (MPSS.TH.2.0.c1). Services follow the stock
+# init.target.rc / init.qcom.rc / init.class_main.sh (without pm-service). The 64-bit stock binaries
+# live in /vendor/bin. This file is parsed after rild.legacy.rc, so the
+# "override" below replaces its ril-daemon.
+
+on init
+    # rmt_storage reads the modem EFS partitions through this name
+    mkdir /dev/block/bootdevice 0755 root root
+    symlink /dev/block/by-name /dev/block/bootdevice/by-name
+
+    # qmuxd / netmgrd sockets
+    mkdir /dev/socket/qmux_radio 0770 radio radio
+    chmod 2770 /dev/socket/qmux_radio
+    mkdir /dev/socket/qmux_audio 0770 media audio
+    chmod 2770 /dev/socket/qmux_audio
+    mkdir /dev/socket/qmux_bluetooth 0770 bluetooth bluetooth
+    chmod 2770 /dev/socket/qmux_bluetooth
+    mkdir /dev/socket/qmux_gps 0770 gps gps
+    chmod 2770 /dev/socket/qmux_gps
+    mkdir /dev/socket/netmgr 0750 radio radio
+
+on post-fs-data
+    mkdir /data/misc/radio 0770 system radio
+    mkdir /data/misc/sms 0770 system radio
+    mkdir /data/misc/ipa 0700 net_admin net_admin
+    mkdir /data/tombstones/modem 0771 system system
+    mkdir /data/tombstones/lpass 0771 system system
+    mkdir /persist/hlos_rfs 0770 root root
+    mkdir /persist/hlos_rfs/shared 0770 root root
+    exec - root root -- /vendor/bin/sh /vendor/bin/init.gree.radio.sh
+
+# Modem subsystem restart level, from the stock image
+on property:persist.sys.ssr.restart_level=*
+    write /sys/bus/msm_subsys/devices/subsys0/restart_level ${persist.sys.ssr.restart_level}
+    write /sys/bus/msm_subsys/devices/subsys1/restart_level ${persist.sys.ssr.restart_level}
+    write /sys/bus/msm_subsys/devices/subsys2/restart_level ${persist.sys.ssr.restart_level}
+    write /sys/bus/msm_subsys/devices/subsys3/restart_level ${persist.sys.ssr.restart_level}
+    write /sys/bus/msm_subsys/devices/subsys4/restart_level ${persist.sys.ssr.restart_level}
+    write /sys/bus/msm_subsys/devices/subsys5/restart_level ${persist.sys.ssr.restart_level}
+
+# The modem is booted by libperipheral_client (a replacement for the stock
+# pm-service/pm-proxy pair) when QCRIL registers.
+
+# Modem EFS storage and remote file system
+service rmt_storage /vendor/bin/rmt_storage
+    class core
+    user root
+    group system wakelock
+
+service tftp_server /vendor/bin/tftp_server
+    class main
+    user root
+    group system wakelock
+
+service irsc_util /vendor/bin/irsc_util "/etc/sec_config"
+    class core
+    user root
+    oneshot
+
+service time_daemon /vendor/bin/time_daemon
+    class late_start
+    user root
+    group root
+
+# QMI / data. librmnetctl comes from the tree (dataservices). The tree's
+# ipacm is built for IPA v3 and the offload HAL (liboffloadhal.so is missing),
+# and Gree's ipacm crashes under 18.1. Data works without it, so the tree's
+# service is turned off.
+service vendor.ipacm /system/vendor/bin/ipacm
+    override
+    class late_start
+    user radio
+    group radio inet
+    disabled
+
+service qmuxd /vendor/bin/qmuxd
+    class main
+    user root
+    group radio audio bluetooth gps nfc diag
+
+service netmgrd /vendor/bin/netmgrd
+    class main
+    user root
+    group radio inet net_admin net_raw
+
+# RIL, one process per SIM (stock: ril-daemon / ril-daemon2)
+service ril-daemon /vendor/bin/hw/rild
+    override
+    class main
+    user root
+    group radio cache inet misc audio log readproc wakelock diag
+    socket rild stream 660 root radio
+    socket rild-debug stream 660 radio system
+    socket sap_uim_socket1 stream 660 bluetooth bluetooth
+
+service ril-daemon2 /vendor/bin/hw/rild -c 2
+    class main
+    user root
+    group radio cache inet misc audio log readproc wakelock diag
+    socket rild2 stream 660 root radio
+    socket rild-debug2 stream 660 radio system
+    disabled
+
+on property:persist.radio.multisim.config=dsds
+    start ril-daemon2

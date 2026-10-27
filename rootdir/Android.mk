@@ -11,4 +11,14 @@ $(G0215D_VENDOR_MOUNT_POINTS):
 
 ALL_DEFAULT_INSTALLED_MODULES += $(G0215D_VENDOR_MOUNT_POINTS)
 
+# tftp_server serves the modem's files from /system/rfs (symlinks into
+# /persist, /data and the modem firmware partition).
+G0215D_RFS := $(TARGET_OUT)/rfs
+
+$(G0215D_RFS): $(LOCAL_PATH)/../radio/mkrfs.sh
+	@echo "Install: $@"
+	@sh $< $@
+
+ALL_DEFAULT_INSTALLED_MODULES += $(G0215D_RFS)
+
 endif

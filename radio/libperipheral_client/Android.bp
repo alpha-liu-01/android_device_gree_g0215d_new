@@ -1,0 +1,16 @@
+// Replacement for Qualcomm's libperipheral_client.so (Android 6 binder
+// client of pm-service). The stock library subclasses BBinder/IInterface with
+// the Android 6 vtable layout and crashes on 18.1's libbinder. This one boots
+// the peripheral itself through /dev/subsys_<name>.
+cc_library_shared {
+    name: "libperipheral_client",
+    vendor: true,
+    srcs: ["peripheral_client.cpp"],
+    shared_libs: [
+        "liblog",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}

@@ -410,7 +410,27 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **没做**：HFP/SCO（通话走蓝牙耳机）和蓝牙电话音频要等 7F 一起验。BLE 外设、文件传输 OPP、蓝牙 tethering、LDAC/aptX 没有测。SELinux 仍是 permissive，开机日志里有 `hal_bluetooth_default` 写 `rfkill/state`、设置 `wc_transport.*` 属性、写 `/data/misc/bluedroid/bt_fw_version.txt` 的 denial，转 enforcing 之前要补策略。`libbtnv` 没用，地址固定为原厂那个值。
     - **顺带发现、不属于 7D**：使用者说无法把手机切到 MTP 传文件，这是另一个问题，另外处理。
   - **7E（传感器 SSC / ADSP）**：启动 `rmt_storage`、`tftp_server`、SLPI/ADSP 子系统与 `sensors.ssc.so` + `android.hardware.sensors@1.0-service`，读取 `/persist/sensors` 校准数据，恢复 BMI160、AK09915、RPR0521、LPS22HB、SHTC1。
-  - **7F（双卡 RIL 与移动数据）**：挂载 `/firmware`（`MPSS.TH.2.0.c1`），启动 `qmuxd`、`netmgrd`、`rild`（格力 RIL blob + 18.1 `libril` 包装），验证 SIM 卡识别与驻网。
+  - **7F（双卡 RIL 与移动数据：SIM 识别、驻网、移动数据已在实机验证）**：
+    - **现象**：修复前插着加拿大 Fizz 卡，手机完全没有 SIM 和信号。系统里没有 `rild`、没有 `android.hardware.radio` HAL，`/firmware` 不存在，基带没起。
+    - **思路**：不重写 RIL。直接用原厂（Android 6，64 位）的 Qualcomm 电话栈：`qmuxd`、`netmgrd`、`rmt_storage`、`tftp_server`、`irsc_util`、`time_daemon`，以及 QCRIL `libril-qc-qmi-1.so`（加 `libril-qc-radioconfig.so`、`libril-qcril-hook-oem.so`）和一整组 QMI 库、`/etc/data/*.xml`、`qcril.db`。18.1 `hardware/ril` 的 `rild` 与 `libril`（CAF 风格，HIDL）加载 QCRIL。QCRIL 的闭源部分对 libc、libbinder 之外的依赖很少，18.1 的链接器配置是 `[legacy]`，厂商库可以直接用系统库。所有文件放在设备树新目录 `radio/`，`radio/radio.mk` 用 `PRODUCT_COPY_FILES` 装进去，`device.mk` 引入这个 makefile。
+    - **目录和挂载（`BoardConfig.mk`、`file_contexts`、`rootdir/Android.mk`）**：
+      - `BOARD_ROOT_EXTRA_SYMLINKS += /mnt/vendor/persist:/persist`、`/vendor/firmware_mnt:/firmware`，原因同 7D 的 `/bt_firmware`：根是只读的 system 镜像。`sepolicy/vendor/file_contexts` 给 `/firmware`、`/persist` 补 `firmware_file`、`persist_file` 标签，否则整镜像的 `e2fsdroid` 过不去。
+      - `tftp_server` 找 `/system/rfs/msm/{mpss,adsp}/{readonly/firmware,hlos,shared,readwrite,ramdumps}`。`radio/mkrfs.sh` 在编译时生成这棵符号链接树（`readonly/firmware → /vendor/firmware_mnt`，`hlos → /persist/hlos_rfs/shared`，`shared → /persist/rfs/shared`，`readwrite → /persist/rfs/msm/<子系统>`，`ramdumps → /data/tombstones/{modem,lpass}`），`rootdir/Android.mk` 里的 `$(TARGET_OUT)/rfs` 目标把它装进 `/system/rfs`。
+      - `rmt_storage` 读 `/dev/block/bootdevice/by-name/*`，由 `vendor.gree.radio.rc` 的 `on init` 建 `/dev/block/bootdevice/by-name → /dev/block/by-name`。
+    - **init 服务（`radio/vendor.gree.radio.rc`，装到 `/vendor/etc/init`）**：`rmt_storage`（core）、`tftp_server`、`irsc_util "/etc/sec_config"`（oneshot）、`time_daemon`、`qmuxd`、`netmgrd`，权限组沿用原厂 `init.qcom.rc`。`on init` 建 `qmux_radio`、`qmux_audio`、`qmux_bluetooth`、`qmux_gps` 和 `/dev/socket/netmgr` 套接字；`post-fs-data` 建 `/data/misc/radio`、`/data/misc/sms`、`/data/misc/ipa`、`/data/tombstones/{modem,lpass}`、`/persist/hlos_rfs{,/shared}`，并跑 `init.gree.radio.sh`：第一次把 `/vendor/qcril.db` 复制到 `/data/misc/radio/qcril.db`（属主 radio，写 `db_check_done`）。`persist.sys.ssr.restart_level` 写 `subsys0..5/restart_level`。
+    - **rild**：`rild.libpath=/vendor/lib64/libril-qc-qmi-1.so`。平台树的 `vendor.ril-daemon` 用 `override` 换成我们的 `ril-daemon`（`/vendor/bin/hw/rild`，user root，组 radio、cache、inet、misc、audio、log、readproc、wakelock、diag，套接字 `rild`、`rild-debug`、`sap_uim_socket1`）。`vendor/etc/init/*.rc` 的解析顺序晚于 `hw/init.gree.rc`，所以 `override` 生效。双卡是两个 rild 进程：`ril-daemon2 ... rild -c 2`（`disabled`，由 `persist.radio.multisim.config=dsds` 触发 `start`）。`-c <id>` 决定 HIDL 服务名 `slot1`、`slot2`。`manifest.xml` 加 `android.hardware.radio@1.1` 的 `IRadio/slot1`、`slot2`、`ISap/slot1`，以及 `android.hardware.radio.deprecated@1.0` 的 `IOemHook/slot1`、`slot2`。`BoardConfig.mk` 设 `TARGET_USES_OLD_MNC_FORMAT := true`。
+    - **属性（`radio.mk`）**：`ril.subscription.types=NV,RUIM`、`ro.telephony.default_network=9,9`、`persist.radio.multisim.config=dsds`、一组 `persist.radio.*`、`persist.rild.nitz_*`、`persist.data.*`、`ro.use_data_netmgrd=true`、`persist.rmnet.data.enable=true` 等，来自原厂 `build.prop`。
+    - **基带如何启动**：原厂靠 `pm-service`/`pm-proxy` 打开 `/dev/subsys_modem`，QCRIL 通过 `libperipheral_client` 向 `pm-service` 注册。打开这个节点就让 modem 子系统从 `/vendor/firmware_mnt`（`MPSS.TH.2.0.c1`）启动，内核有引用计数。原厂 `pm-service`、`pm-proxy` 是 Android 6 的 C++ Binder 子类，和 A11 的 `libbinder` 虚表不兼容，`pm-proxy` 一启动就在空指针上崩溃。所以自己写了 `radio/libperipheral_client`（`vendor` 共享库，源码 `peripheral_client.cpp`），覆盖原厂同名库：导出 `pm_client_register/connect/disconnect/unregister/event_acknowledge`，`pm_client_connect` 起一个线程先回调 `GOING_ONLINE`，打开 `/dev/subsys_<名字>` 并在进程生命周期内保持打开，再回调 `IS_ONLINE`；其余是空函数。原厂 `pm-service`、`pm-proxy` 不再启动。副作用：modem 从不主动下电。这个库里还放了一个空的 `android::AudioSystem::setErrorCallback(void (*)(int))`，因为 QCRIL 链接了这个 Android 6 的 libmedia 符号，A11 没有它。
+    - **二进制补丁**：`time_daemon` 和 `libtime_genoff` 在 EL0 读 `cntpct_el0`，这个内核会陷入，进程 `SIGILL`。把两处指令改成读 `cntvct_el0`（`time_daemon` 偏移 `0x2030`，`libtime_genoff` 偏移 `0x133c`），数值同一个计数器，只是用户态可读。
+    - **一个重要的反例：不要用 `SIM_COUNT := 2` 编 libril**。第一版为了双卡定义了 `SIM_COUNT=2`，`libril` 就用 `RIL_Env` 的多卡变体（每次回调多带一个 slot 参数）。QCRIL 用的是每个实例一份的 3 参数 `RIL_Env`，`oemHookRawInd` 里读到的槽号是垃圾值，`rild` 直接崩溃。所以 `libril` 不带 `SIM_COUNT=2`，双卡靠两个 rild 进程。
+    - **和平台树模块撞车的文件**：原厂的 `ipacm`、`ipacm-diag`、`libipanat`、`libnetfilter_conntrack`、`libnfnetlink`、`librmnetctl` 与平台树里的同名模块安装路径冲突，`m systemimage` 报重复安装目标。这些原厂副本没有放进 `radio/`，用平台树的版本。`librmnetctl` 平台树版本实测和 `netmgrd` 一起正常。
+    - **`ipacm` 关掉**：平台树的 `ipacm` 是按 IPA v3 和 offload HAL 编的，`liboffloadhal.so` 缺，进程 restart-loop。原厂的 `ipacm` 也在 `0x180` 空指针崩溃。不用它，移动数据照样通（IPA 的 `rmnet_ipa` 数据通路不依赖它）。`vendor.gree.radio.rc` 里 `service vendor.ipacm` 带 `override` 和 `disabled`，等于关掉。热点、IPA offload 之后再看。
+    - **`radio/etc/data/*.xml`**：构建会对 `.xml` 跑 `xmllint`，原厂的三份 XML 文件开头有注释，在 `<?xml ...?>` 声明之前，报 `XML declaration allowed only at the start of the document`。声明移到第一行，注释放后面，libxml 解析不受影响。
+    - **一个事故：黑屏、无背光、红灯**。第一次往机器里推文件，用 `chmod 644 /system/vendor/lib64/*` 把 `lib64/hw` 和 `lib64/egl` 目录也改成 644，系统找不到 `/vendor/lib64/hw/android.hardware.graphics.allocator@2.0-impl.so`，`surfaceflinger` abort，屏幕不亮。`/cache/boot-logcat.txt` 里有这句日志。恢复办法是在 recovery 里挂载 system（`sde18`），对 `vendor/lib64` 下所有目录 `chmod 755`。之后推送脚本只按文件改权限。经验：永远不要对目录通配 `chmod`。
+    - **实机证明**：`subsys5 modem` 为 `ONLINE`，两个 rild 向 hwservicemanager 注册 `slot1`、`slot2`，`gsm.sim.state=LOADED,ABSENT`，Fizz 卡（加拿大）识别并加载，驻网 `Fizz EXT`（`302610`），HSPA，漫游标志为 true。关 Wi-Fi 后蜂窝数据通：`rmnet_data0` 拿到 IP，`ping 8.8.8.8` 和域名解析都成功。冷启动一次后仍然成立。
+    - **数据被禁用的原因不是 RIL**：`Data disallowed, reasons: ROAMING_DISABLED`、`mobile_data=0`。这是用户设置：`svc data enable`、`settings put global data_roaming1 1`（Fizz 用的是网络共享接入（`302610`），系统把它当成漫游，要在设置里打开数据漫游）。这不是构建里要修的东西。
+    - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7f.img`（稀疏格式，1697882656 字节，`sha256 654350620fc2703678e913fd219d6c62c375443854ec343b60ef47dba036375f`）。staging 目录里有 `/persist`、`/firmware` 符号链接、`system/rfs` 符号链接树、六个原厂二进制、`vendor.gree.radio.rc`、`qcril.db`，manifest 里有两个 radio HAL，`lib64`、`lib64/hw`、`lib64/egl` 都是 755。这份镜像没有刷。内核和 boot 没有改，仍是 `boot-audio9.img`。
+    - **没做、没通过的**：语音通话、短信、VoLTE/IMS、第二张卡（`ABSENT`）、听筒和蓝牙电话音频、LTE（只看到 HSPA）都没有测。`netmgrd` 在一次启动后（13:27:48）被 Scudo 报 `invalid chunk state when deallocating`（Android 6 代码里的重复释放，A11 的 Scudo 不再放过）abort，init 自动重启后正常，原因没有追。如果这样的崩溃反复出现，需要对 `netmgrd` 单独换分配器或补丁。`pm-service` 的替代品不会让 modem 下电，影响功耗。SELinux 仍是 permissive，转 enforcing 之前要给这些守护进程补策略。
   - **7G（相机与 Goodix GF816M 指纹进程存活）**：检查 `mm-qcamera-daemon` 与 `gx_fpd` 守护进程启动状态，记录 SELinux denial 并归档。
 
 ### 事件
@@ -464,6 +484,16 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **蓝牙地址**：AOSP HAL 没有地址就 abort。把 TWRP 备份里原厂的 `[redacted]` 放进 `bluetooth/bdaddr`。
 4. **A2DP**：蓝牙音频 HAL 2.0 加 `audio.bluetooth.default`，policy 引入 `bluetooth_audio_policy_configuration.xml`。使用者确认只从蓝牙耳机出声，开机头一分钟有爆音，之后干净。
 5. **整镜像**：`system-7d.img` 编出来了，`sha256 fed6b2584e1729b76bd9fa5a7fc20b1eef1dd2b3aca44d5a33d8b62822bb59f6`，没有刷。
+
+同日第十轮：7F 双卡 RIL 与移动数据，Fizz 卡识别、驻网、蜂窝数据通，细节见 7F。没有动内核和 boot。
+1. **电话栈**：用原厂 Android 6 的 `qmuxd`、`netmgrd`、`rmt_storage`、`tftp_server`、`time_daemon`、QCRIL 和 QMI 库，放在设备树 `radio/`。两个 `rild`（`slot1`、`slot2`）加 `libril`（不带 `SIM_COUNT=2`）。
+2. **基带启动**：自己写 `libperipheral_client` 替代原厂 `pm-service`、`pm-proxy`（Binder 虚表和 A11 不兼容），打开 `/dev/subsys_modem` 让基带起来。补了 `AudioSystem::setErrorCallback` 的空实现。
+3. **补丁与挂载**：`cntpct_el0` 改 `cntvct_el0`（`time_daemon`、`libtime_genoff`）；`/persist`、`/firmware` 用 `BOARD_ROOT_EXTRA_SYMLINKS`；`/system/rfs` 符号链接树在编译时生成。
+4. **事故**：第一次推送时 `chmod 644` 把 `lib64/hw` 目录改成 644，开机黑屏无背光红灯。在 recovery 里把目录改回 755 恢复。
+5. **平台树冲突**：`ipacm`、`librmnetctl` 等六个原厂副本和平台树模块撞车，改用平台树版本；平台树 `ipacm` 起不来，用 `override` 加 `disabled` 关掉。三份 `data/*.xml` 的声明挪到第一行才能过 `xmllint`。
+6. **实机**：驻网 `Fizz EXT`（`302610`），关 Wi-Fi 后蜂窝数据通。数据一开始是关的，原因是漫游设置，在设置里打开数据漫游即可。
+7. **整镜像**：`system-7f.img` 编出来了，`sha256 654350620fc2703678e913fd219d6c62c375443854ec343b60ef47dba036375f`，没有刷。
+8. **遗留**：通话、短信、VoLTE、SIM2、LTE 没测；`netmgrd` 偶发 Scudo abort（init 会重启它）；7E 传感器仍然跳过。
 
 ## 步骤 8：收口
 

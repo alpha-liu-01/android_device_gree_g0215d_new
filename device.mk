@@ -37,6 +37,8 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
+$(call inherit-product, $(LOCAL_PATH)/radio/radio.mk)
+
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH)
 
