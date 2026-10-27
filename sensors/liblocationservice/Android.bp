@@ -1,0 +1,6 @@
+cc_library_shared {
+    name: "liblocationservice",
+    vendor: true,
+    srcs: ["locationservice_stub.cpp"],
+    cflags: ["-fvisibility=default"],
+}

@@ -11,8 +11,19 @@ on fs
 
 on post-fs
     start bootlog
+    # sensors.qcom rejects /persist when realpath() differs from the path.
+    # The partition is already mounted at /mnt/vendor/persist by mount_all.
+    mount none /mnt/vendor/persist /persist bind
 
 on post-fs-data
+    chmod 0775 /persist/sensors
+    chmod 0664 /persist/sensors/sensors_settings
+    chown system root /persist/sensors/sensors_settings
+    mkdir /data/misc/sensors 0775 system system
+    # Blocks until the daemon is serving sns.reg, SLPI is ONLINE and the
+    # HIDL HAL has registered. zygote starts after post-fs-data, so
+    # SensorService finds the HAL already up.
+    exec_start sensors-boot
     mkdir /data/vendor/display 0770 system graphics
     mkdir /data/vendor/wifi 0770 wifi wifi
     mkdir /data/vendor/wifi/wpa 0770 wifi wifi
@@ -113,6 +124,33 @@ on property:wc_transport.start_hci=true
 
 on property:wc_transport.start_hci=false
     stop wcnss_filter
+
+service sensors /vendor/bin/sensors.qcom
+    user root
+    # 3011 is the sensor group in /system/etc/sec_config (services 256+).
+    # On this Android it is named uhid. The daemon setuid()s to nobody and
+    # keeps this supplementary group; the IPC router allows the send only
+    # if that group is present. adb's root shell has it, a bare init
+    # service does not.
+    group root uhid net_raw
+    disabled
+
+service sensors-boot /system/bin/sh /vendor/bin/init.gree.sensors.sh
+    user root
+    group root
+    oneshot
+    disabled
+
+# Override the AOSP class-hal service so it does not start before SLPI is
+# up. sensors-boot starts it after the daemon has sns.reg open.
+service vendor.sensors-hal-1-0 /vendor/bin/hw/android.hardware.sensors@1.0-service
+    override
+    interface android.hardware.sensors@1.0::ISensors default
+    user system
+    group system wakelock uhid context_hub
+    capabilities BLOCK_SUSPEND
+    rlimit rtprio 10 10
+    disabled
 
 service wcnss_filter /vendor/bin/wcnss_filter
     class late_start

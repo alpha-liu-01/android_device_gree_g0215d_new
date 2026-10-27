@@ -1,0 +1,60 @@
+// Stock Android 6 SSC userspace. sensors.qcom is the DSPS daemon;
+// sensors.ssc.so is the legacy sensors HAL, opened by the multihal below.
+
+cc_prebuilt_binary {
+    name: "sensors.qcom",
+    vendor: true,
+    srcs: ["bin/sensors.qcom"],
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}
+
+cc_prebuilt_library_shared {
+    name: "libsensor1",
+    vendor: true,
+    srcs: ["lib64/libsensor1.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}
+
+cc_prebuilt_library_shared {
+    name: "libsensor_reg",
+    vendor: true,
+    srcs: ["lib64/libsensor_reg.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}
+
+cc_prebuilt_library_shared {
+    name: "sensors.ssc",
+    vendor: true,
+    srcs: ["lib64/sensors.ssc.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}
+
+// ro.hardware is "qcom", so hw_get_module loads sensors.qcom.so. This is the
+// stock multihal with its config path rewritten to /vendor/etc/sensors/hals.conf.
+cc_prebuilt_library_shared {
+    name: "sensors.qcom.multihal",
+    stem: "sensors.qcom",
+    vendor: true,
+    relative_install_path: "hw",
+    srcs: ["lib64/hw/sensors.qcom.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}

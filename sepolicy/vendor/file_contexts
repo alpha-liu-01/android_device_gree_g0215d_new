@@ -3,5 +3,5 @@
 /bt_firmware(/.*)?    u:object_r:bt_firmware_file:s0
 # Root symlink to the modem firmware partition (BOARD_ROOT_EXTRA_SYMLINKS).
 /firmware    u:object_r:firmware_file:s0
-# Root symlink to /mnt/vendor/persist, the path the modem daemons use.
+# Real /persist directory. init bind-mounts /mnt/vendor/persist here.
 /persist    u:object_r:persist_file:s0

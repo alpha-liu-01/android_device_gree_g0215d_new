@@ -1,11 +1,11 @@
 #!/bin/sh
 # Builds /system/rfs for tftp_server. The modem asks for files by a path that
-# tftp_server maps below /system/rfs/<msm|mdm|apq>/<mpss|adsp|...>/. In the
+# tftp_server maps below /system/rfs/<msm|mdm|apq>/<mpss|adsp|slpi|...>/. In the
 # stock image all of these are symlinks into /persist, /data and /firmware.
-# Only the msm (MSM8996) trees are used here.
+# Only the msm (MSM8996) trees are used here. slpi is the sensor subsystem.
 dest="$1"
 rm -rf "$dest"
-for sub in mpss adsp; do
+for sub in mpss adsp slpi; do
     d="$dest/msm/$sub"
     mkdir -p "$d/readonly"
     ln -s /vendor/firmware_mnt "$d/readonly/firmware"
@@ -15,3 +15,4 @@ for sub in mpss adsp; do
 done
 ln -s /data/tombstones/modem "$dest/msm/mpss/ramdumps"
 ln -s /data/tombstones/lpass "$dest/msm/adsp/ramdumps"
+ln -s /data/tombstones/slpi "$dest/msm/slpi/ramdumps"

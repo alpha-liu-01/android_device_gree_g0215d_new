@@ -93,8 +93,11 @@ BOARD_ROOT_EXTRA_SYMLINKS += /vendor/bt_firmware:/bt_firmware
 # callbacks: no SIM_COUNT=2. Old MNC encoding of that era.
 # The modem daemons (rmt_storage, tftp_server) use /persist and
 # /dev/block/bootdevice, which the stock image provided.
+# /persist is a real directory, not a symlink. sensors.qcom compares the
+# path with realpath() and rejects a symlink to /mnt/vendor/persist.
+# init.gree.rc bind-mounts the partition there after mount_all.
 TARGET_USES_OLD_MNC_FORMAT := true
-BOARD_ROOT_EXTRA_SYMLINKS += /mnt/vendor/persist:/persist
+BOARD_ROOT_EXTRA_FOLDERS += persist
 BOARD_ROOT_EXTRA_SYMLINKS += /vendor/firmware_mnt:/firmware
 
 # VINTF

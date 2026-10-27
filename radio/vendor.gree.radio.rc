@@ -25,6 +25,7 @@ on post-fs-data
     mkdir /data/misc/ipa 0700 net_admin net_admin
     mkdir /data/tombstones/modem 0771 system system
     mkdir /data/tombstones/lpass 0771 system system
+    mkdir /data/tombstones/slpi 0771 system system
     mkdir /persist/hlos_rfs 0770 root root
     mkdir /persist/hlos_rfs/shared 0770 root root
     exec - root root -- /vendor/bin/sh /vendor/bin/init.gree.radio.sh
