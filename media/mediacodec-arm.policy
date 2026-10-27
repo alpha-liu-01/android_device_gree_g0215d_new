@@ -1,0 +1,4 @@
+# Venus OMX calls eventfd() and select(). The system mediacodec policy
+# allows neither eventfd2 nor pselect6, and minijail aborts the process.
+eventfd2: 1
+pselect6: 1
