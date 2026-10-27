@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G0215D has no OMX codecs (no Venus blobs yet). The vendor OMX store
+     still needs one parseable media_codecs.xml: if it reports a parsing
+     error, MediaCodecList stops before adding the Codec2 software codecs
+     listed by the swcodec APEX, and no audio or video can be decoded. -->
+<MediaCodecs>
+</MediaCodecs>

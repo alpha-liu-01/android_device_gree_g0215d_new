@@ -17,8 +17,12 @@ on post-fs-data
     mkdir /data/vendor/wifi 0770 wifi wifi
     mkdir /data/vendor/wifi/wpa 0770 wifi wifi
     mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi
+    mkdir /data/vendor/audio 0770 audio audio
 
 on boot
+    # ADSP firmware is on the modem partition (/vendor/firmware_mnt/image).
+    # The sound card registers only after the ADSP and the WCD9335 are up.
+    write /sys/kernel/boot_adsp/boot 1
     chmod 0666 /dev/kgsl-3d0
     chown system system /dev/kgsl-3d0
     chmod 0666 /dev/ion

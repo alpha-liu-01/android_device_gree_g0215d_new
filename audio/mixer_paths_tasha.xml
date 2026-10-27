@@ -1988,20 +1988,11 @@
         <ctl name="IIR0 INP0 MUX" value="DEC7" />
     </path>
 
+    <!-- G0215D: the speaker is a TFA9890 on QUAT_MI2S_RX, not WSA881x on
+         SLIMbus. audio_platform_info.xml gives it the quat_mi2s_rx backend,
+         so the use-case paths are "<usecase> quat_mi2s_rx". The TFA codec
+         is part of the QUAT MI2S DAI link and needs no mixer control. -->
     <path name="speaker">
-        <ctl name="SLIM RX0 MUX" value="AIF_MIX1_PB" />
-        <ctl name="SLIM RX1 MUX" value="AIF_MIX1_PB" />
-        <ctl name="SLIM_0_RX Channels" value="Two" />
-        <ctl name="RX INT7_1 MIX1 INP0" value="RX0" />
-        <ctl name="RX INT8_1 MIX1 INP0" value="RX1" />
-        <ctl name="SpkrLeft COMP Switch" value="1" />
-        <ctl name="SpkrRight COMP Switch" value="1" />
-        <ctl name="SpkrLeft BOOST Switch" value="1" />
-        <ctl name="SpkrRight BOOST Switch" value="1" />
-        <ctl name="SpkrLeft VISENSE Switch" value="1" />
-        <ctl name="SpkrRight VISENSE Switch" value="1" />
-        <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
-        <ctl name="SpkrRight SWR DAC_Port Switch" value="1" />
     </path>
 
     <path name="speaker-fluid">

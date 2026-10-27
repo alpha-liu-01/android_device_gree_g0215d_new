@@ -5,4 +5,8 @@
 -->
 <resources>
     <bool name="config_showNavigationBar">false</bool>
+
+    <!-- The kernel reports the wired headset through its "Headset Jack" input
+         switches; there is no /sys/class/switch/h2w node. -->
+    <bool name="config_useDevInputEventForAudioJack">true</bool>
 </resources>

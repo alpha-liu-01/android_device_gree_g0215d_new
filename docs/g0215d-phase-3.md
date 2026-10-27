@@ -362,7 +362,37 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **撤回的 T15 方案**：之前为 T15 做的改动全部撤回。工厂 raw 恢复原样（CRC `53A963`，T15 CTRL `00`、阈值 `0x32`）。`init.atmel_ts.sh` 去掉 T15 逻辑，`init.gree.rc` 删掉 `atmel_tp_keys` 服务，`atmel_mxt_ts_T100_touchscreen.kl` 及其在 `device.mk` 的拷贝也删掉。芯片 NVRAM 已写回工厂值并 `BACKUPNV`，`config_csum` 为 `53a963`。T15 在没有按键垫的节点上开着、阈值又是 8，有误报的风险。
     - **实机证明**：内核 `#19` 开机打印 `gf816m_keys spi32766.0: chip GFx16M fw 01.04.04`。sysfs `status` 读到 `status 0x00 heartbeat 0xc6 fw_state 0xbe`，模式为 `0x01`。按两侧键时 `event2`（`tiny4412-key`）上有成对的 `KEY_MENU` / `KEY_BACK` 按下和抬起，`msmgpio 121` 计到 24 次中断。使用者确认返回和最近任务都能用，实体 Home 仍然正常。重启后 `dumpsys input` 显示 `tiny4412-key` 用的是 `/vendor/usr/keylayout/tiny4412-key.kl`。
     - **和指纹的关系**：这个驱动只做按键，不提供原厂指纹 HAL `gx_fpd` 要的 `/dev/goodix_fp` 字符设备和图像模式流程。7G 做指纹时要扩展这个驱动，或者换成完整的 Goodix 驱动。两种做法都必须保留按键上报，因为两侧键读的是同一颗芯片。
-  - **7C（音频子系统）**：当前日志显示 `audio.primary.default` 因缺 `/dev/snd/pcmC0D0p` 报错。需启用 `hardware/qcom-caf/msm8996/audio` 编出 `audio.primary.msm8996.so`，从实机 `dsp` / `modem` 分区挂载或软链 ADSP 固件，加载 WCD9335 (`tasha`) codec 与 I2C `tfa98xx` 智能功放固件 `tfa98xx.cnt` 及格力 `acdbdata/MTP`。
+  - **7C（音频子系统：WCD9335 + TFA9890，扬声器、耳机、录音都已出声）**：
+    - **现象**：修复前没有声卡，`/proc/asound/cards` 为空，`audio.primary.default` 因缺 `/dev/snd/pcmC0D0p` 报错。声卡起来以后又出现两次开机崩溃、Android 播放无声、ACDB 未初始化、录音无声、插耳机仍走扬声器。下面按出现的顺序记录。
+    - **硬件**：耳机、听筒和麦克风走 WCD9335（`tasha`，SLIMbus）。扬声器不是 MTP 的两颗 WSA881x，而是一颗 NXP TFA9890，挂在 I2C-6 地址 `0x34`，音频走 QUAT MI2S（AFE 端口 `4102`），复位脚 GPIO 40。
+    - **ADSP 起不来**：`fstab.qcom` 把 `modem`、`dsp`、`bluetooth` 挂到 `/vendor/firmware_mnt`、`/vendor/dsp`、`/vendor/bt_firmware`。本机 `/vendor` 就是 `/system/vendor`，镜像里没有这三个目录，所以挂载失败。新增 `rootdir/Android.mk`，在 `$(TARGET_OUT_VENDOR)` 下建好这三个目录。`init.gree.rc` 的 `on boot` 开头写 `/sys/kernel/boot_adsp/boot 1`，之后 ueventd 从 `/vendor/firmware_mnt/image` 读 `adsp.mdt` / `adsp.b*`。`on post-fs-data` 建 `/data/vendor/audio`。
+    - **HAL 编译**：`BoardConfig.mk` 打开 `BOARD_USES_ALSA_AUDIO`、`USE_XML_AUDIO_POLICY_CONF`、`AUDIO_USE_LL_AS_PRIMARY_OUTPUT`。`BOARD_SUPPORTS_SOUND_TRIGGER := true` 也必须打开：关掉 sound trigger、listen 和 device arbitration 后，`audio_extn/utils.c` 会剩一个没用到的参数，在 `-Werror` 下编不过。`hardware/qcom-caf/msm8996/audio` 从 `$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr` 读内核 uapi 头。因为 `TARGET_NO_KERNEL := true`，需要先在内核树里手动导出一次：
+      ```
+      make O=out ARCH=arm64 headers_install INSTALL_HDR_PATH=/run/media/alpha/YMTC/lineage-18.1/out/target/product/g0215d/obj/KERNEL_OBJ/usr
+      ```
+      `device.mk` 加入 `audio.primary.msm8996`、`audio.r_submix.default`、`audio.usb.default`、`libqcompostprocbundle`、`libqcomvisualizer`、`libqcomvoiceprocessing`、`libvolumelistener`、`libaudio-resampler`、`tinyplay` / `tinycap` / `tinymix`，以及 `audio_policy_configuration.xml` 和 AOSP 的音量表、r_submix、USB policy 配置。
+    - **声卡一直 defer 的三个原因**（都改在内核 DTS 的 `sound-9335` 节点）：
+      1. 继承的 `qcom,wsa-max-devs` 要找 WSA881x，本机没有，改为 `<0>`。
+      2. 机器驱动把 TFA 的 codec 名写死为 `tfa98xx.3-0034`。`msm8996.c` 改为从 DT 读 `qcom,tfa98xx-codec-name` / `qcom,tfa98xx-codec-dai-name`，DTS 填 `tfa98xx.6-0034` / `tfa98xx-aif-6-34`，并在 `&i2c_6` 下加 `tfa98xx@34`（`nxp,tfa98xx`，`reset-gpio = <&tlmm 40 0>`）。
+      3. 机器驱动会链接 PRI 到 QUAT 四个 MI2S 口，任何一个 CPU DAI 不在 `asoc-cpu` 里，整张卡都 defer。按原厂补上 primary MI2S DAI 节点 `dai_pri_mi2s`（`qcom,msm-dai-q6-mi2s-dev-id = <0>`），`asoc-cpu` / `asoc-cpu-names` 写成 MTP 全表再加 `msm-dai-q6-mi2s.0/.1/.3`，共 62 项。同时删掉 `qcom,hdmi-audio-rx`：本机没有 HDMI，`CONFIG_MSM_EXT_DISPLAY` 也没开，`msm_hdmi_audio_codec_rx_dai` 永远不会出现。
+    - **声卡注册后开机崩溃（使用者手动进 recovery）**：本机 ramoops 不能用，sysrq 触发的 panic 重启后，pstore 也是空的，引导程序会清内存。调试办法：在 recovery 里注释掉 `init.gree.rc` 的 `boot_adsp` 写入，先让系统开机；然后在可疑路径上加带编号的 `pr_err("... step N"); msleep(150);`，主机端 `adb shell dmesg -w` 实时存日志，再手动 `echo 1 > /sys/kernel/boot_adsp/boot` 触发。最后一条编号就是崩溃位置。这样找到两处：
+      1. `msm_audrx_init` 里的 `rtd_aux` 等于 `&card->rtd[num_links]`。没有 aux 设备（`num_aux_devs == 0`）时它指向数组外面，判断 WSA8810 时解引用就崩。改为先判断 `rtd->card->num_aux_devs`。
+      2. TFA 驱动是 v6.7.1，它的 `TfaContainer_t` 有 `uint16_t nliveData`，所以期望 index 在偏移 `0x2e`。格力（以及 OnePlus 3）的 `PM1_00` 容器没有这个字段，index 在 `0x2c`。结果 `tfaContDevice` 返回 NULL，`tfa_cont_get_idx` 直接解引用。`tfa_container.c` 新增 `tfaContIndex()`：`0x2e` 处不是 device 描述而 `0x2c` 处是时，用旧位置；`tfa_cont_get_idx` 同时加 NULL 判断。修好后 `mono Profile` 控件读到 `MUSIC_48000`，容器正常加载。
+    - **扬声器路由**：`audio_platform_info.xml` 把 `SND_DEVICE_OUT_SPEAKER` 改到 `quat_mi2s_rx` 后端（`QUAT_MI2S_RX`），去掉 24 位设置（TFA 这条链路是 16 位 48 kHz），删除三条 SLIMBUS_0 加 SLIMBUS_6 的“扬声器 + 耳机”组合后端。因为接口不同，HAL 会自己把组合设备拆成两路。`mixer_paths_tasha.xml` 的 `speaker` 路径清空：TFA 是 QUAT MI2S DAI 链路的一部分，不需要 WCD 控件。`firmware/tfa98xx.cnt`（原厂）装到 `/system/etc/firmware/`。
+    - **Android 播放无声，`tinyplay` 有声**：`MediaCodecList` 报 `Failed to create audio/raw decoder`。没有 `media_codecs.xml` 时，vendor `OmxStore` 返回 `NO_INIT`，`MediaCodecList` 会在加入 swcodec APEX 的 Codec2 软件解码器之前就停下。新增 `media/media_codecs.xml`（空的 `<MediaCodecs/>`，本机还没有 Venus OMX），装到 `/vendor/etc/`。
+    - **ACDB 未初始化**：logcat 报 `ACDB -> Not correctly initialized!`。18.1 的 CAF HAL（LA.UM.8.6）`platform.c` 要 dlsym `acdb_loader_init_v3` 和 `acdb_loader_reload_acdb_files`，少一个就 `goto acdb_init_fail`。格力的 M 版 `libacdbloader.so` 只导出 `acdb_loader_init_v2` 和 `init_ACDB`。这里没有用 `TARGET_LD_SHIM_LIBS`，因为它通过 soong config 写进 runtime APEX 里的 linker。改为新增 `audio/acdbloader/`：
+      - 原厂 blob 改名为 `libacdbloader_gree.so`，用 `prebuilts/extract-tools/linux-x86/bin/patchelf-0_9` 把 SONAME 改成同名。
+      - 新的 `libacdbloader.so` 是一个垫片（`acdbloader_shim.c`），NEEDED 原厂库。`acdb_loader_init_v3(name, cvd, key_list)` 取链表第一个 key（没有就用 0），转调 `acdb_loader_init_v2`；`acdb_loader_reload_acdb_files` 打一条警告并返回 -1。
+      - `device.mk` 装 `libacdbloader`，原厂 `libacdb-fts`、`libacdbrtac`、`libadiertac`、`libaudcal` 放 `/vendor/lib/`，七个 `MTP_*_cal.acdb` 放 `/system/etc/acdbdata/MTP/`，校验和与 blob 清单一致。
+      - 实机 logcat 出现 `ACDB initialized`，播放时发出扬声器校准（`acdb_id = 15`）。`Fail to allocate memory for metainfo` 和耳机的 `ACDB AFE returned = -19` 不影响出声。
+    - **录音无声**：录音能完成，回放没有声音。原厂 DT 的主麦（`Handset Mic`，AMIC5）用 MIC BIAS4，继承的 MTP 路由是 MIC BIAS3。DTS 覆盖 `qcom,audio-routing`，内容和 MTP 相同，只把 `"AMIC5", "MIC BIAS3", "MIC BIAS3", "Handset Mic"` 改成 MIC BIAS4。原厂的 `Secordary Mic` widget 在这份驱动里不存在，所以 `Analog Mic6` 保留。mixer 路径（`handset-mic` → `adc5`）和原厂一致，没改。
+    - **插耳机仍走扬声器**：分两层。
+      1. 原厂 `qcom,msm-mbhc-hphl-swh = <1>`，MTP 是 0，DTS 改为 1。
+      2. 改完后内核已经检测到插入：`dumpsys input` 里 `Headset Jack` 的 `SwitchValues: 84`，即 `SW_HEADPHONE_INSERT` 加 `SW_JACK_PHYSICAL_INSERT`。但框架默认只读 `/sys/class/switch/h2w`，这棵内核没有这个节点。`overlay/frameworks/base/core/res/res/values/config.xml` 设 `config_useDevInputEventForAudioJack = true`，`WiredAccessoryManager` 改读输入事件。实机只重编了 `framework-res`，推到 `/system/framework/` 后重启；原来那份备份在 `boot-test/framework-res.apk.device-bak`。
+    - **内核与镜像**：三个内核文件（`sound/soc/msm/msm8996.c`、`sound/soc/codecs/tfa98xx/tfa_container.c`、`g0215d-msm8996-v3-pmi8996-mtp.dts`）提交为 `79851a82f397`，已推送到 [`alpha-liu-01/android_kernel_gree_g0215d`](https://github.com/alpha-liu-01/android_kernel_gree_g0215d) 的 `g0215d` 分支。boot 镜像是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-audio9.img`，13615104 字节，`sha256 16f5843ce7c406eb9951449ffc64c36bd1e18904c30d28ad548315bf4d9b6cee`。内核结束地址 `0x80c36f69`，仍低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-audio2.img` / `boot-gf816m.img`。提交前只挪了 `tfa_container.c` 里一段注释的位置，镜像没有重打。
+    - **实机证明**：声卡 `msm8996-tasha-mtp-snd-card` 约在开机 10 秒注册，系统正常开机。使用者确认：`tinyplay` 1 kHz 测试音清楚；Eleven 播放清楚；音量键有效；Recorder 录下的人声清楚；插耳机后只有耳机出声、两耳都有，拔出时播放暂停。HAL 日志显示扬声器走 `quat_mi2s_rx`，耳机走 `headphones`（`SLIMBUS_6_RX`）。
+    - **还没做**：听筒（`handset`）没有单独测，要等 7F 通话时一起验。耳机麦没有测。语音通话、offload、蓝牙 A2DP 和 Venus 硬件编解码不在 7C。日志里还有几条不影响出声的噪声：`Amplifier initialization failed`（Lineage 没有 amp HAL）、找不到 sound trigger 库、缺 `audio_io_policy.conf`、`audio_route` 跳过部分控件。
+    - **实机和镜像的差别**：上面的用户态文件都是手动推进实机 `/system` 的，没有重新打 `system.img`。本仓库和 18.1 设备树已经一致，下一次整编会全部带上。
   - **7D（蓝牙 QCA6174 Rome）**：启用 `android.hardware.bluetooth@1.0-service-qti` 与 `libbt-vendor.so`，提取 `/bt_firmware/image/rampatch_tlv_3.2.tlv` 与 `nvm_tlv_3.2.bin`。
   - **7E（传感器 SSC / ADSP）**：启动 `rmt_storage`、`tftp_server`、SLPI/ADSP 子系统与 `sensors.ssc.so` + `android.hardware.sensors@1.0-service`，读取 `/persist/sensors` 校准数据，恢复 BMI160、AK09915、RPR0521、LPS22HB、SHTC1。
   - **7F（双卡 RIL 与移动数据）**：挂载 `/firmware`（`MPSS.TH.2.0.c1`），启动 `qmuxd`、`netmgrd`、`rild`（格力 RIL blob + 18.1 `libril` 包装），验证 SIM 卡识别与驻网。
@@ -407,6 +437,12 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **boot 镜像**：`/run/media/alpha/YMTC/g0215d/boot-test/boot-gf816m.img`，13615104 字节，`sha256 2f96fb1117bafaa5bfb680de468a0b9bb212cd2ef39d7875ab7b9f480b59380d`。cmdline 和 ramdisk 沿用 `boot-debug4.img`，后者仍是回退用的镜像。刷写前先 `adb root`，`dd` 写 `/dev/block/by-name/boot` 后用 `head -c` 核对 sha256。
 4. **撤回 T15 改动**：本仓库、18.1 设备树和实机 `/system` 都已恢复工厂 raw 和原来的 `init.atmel_ts.sh`，删掉 `atmel_tp_keys` 服务和 Atmel 按键 keylayout。芯片 T15 写回 CTRL `00`、阈值 `0x32` 并 `BACKUPNV`。重启后 `config_csum` 为 `53a963`，`gf816m_keys` 正常探测。
 
+同日第八轮：7C 音频，扬声器、耳机、录音都已出声，细节见 7C。
+1. **声卡注册**：ADSP 挂载点、`boot_adsp`、WSA 设为 0、TFA DT 节点和名字、primary MI2S 与 `asoc-cpu` 全表、删掉 HDMI 音频，这些改完后声卡注册了，但随后开机崩溃。使用者手动进 recovery，在 recovery 里先停掉 ADSP 自动启动，用带编号的日志行加手动触发 ADSP 找到两处崩溃（`rtd_aux` 越界、TFA 旧容器 index），修好后系统正常开机。
+2. **出声**：`tinyplay` 有声而 Android 无声，原因是缺 `media_codecs.xml`。补上之后，再用 `libacdbloader` 垫片接通 ACDB。
+3. **录音与耳机**：主麦改用 MIC BIAS4，`hphl-swh` 改为 1，`config_useDevInputEventForAudioJack` 打开。使用者确认录音和耳机正常，拔耳机时播放暂停。
+4. **内核**：提交为 `79851a82f397` 并推送。boot 镜像是 `boot-audio9.img`，`sha256 16f5843ce7c406eb9951449ffc64c36bd1e18904c30d28ad548315bf4d9b6cee`。这一轮也重编了内核，属于“本阶段不做”里的例外。
+
 ## 步骤 8：收口
 
 推荐：步骤 7 的十项都有一次通过的记录，相机和指纹的进程状态也记下了，这一阶段就停。下一步才是阶段 4：从 userdata 划出 vendor，再把板级目录接回小米 `lineage-22.2` 的 `msm8996-common`。
@@ -424,7 +460,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包

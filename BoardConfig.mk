@@ -62,6 +62,15 @@ MAX_VIRTUAL_DISPLAY_DIMENSION := 4096
 TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS := true
 TARGET_PROVIDES_LIBLIGHT := true
 
+# Audio. CAF msm8996 HAL; it reads kernel uapi headers from
+# $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr (see docs, step 7C).
+BOARD_USES_ALSA_AUDIO := true
+USE_XML_AUDIO_POLICY_CONF := 1
+AUDIO_USE_LL_AS_PRIMARY_OUTPUT := true
+# Also needed for the HAL to build: with no sound trigger, listen or
+# device arbitration, audio_extn/utils.c has an unused parameter (-Werror).
+BOARD_SUPPORTS_SOUND_TRIGGER := true
+
 # VINTF
 DEVICE_MANIFEST_FILE := $(DEVICE_PATH)/manifest.xml
 

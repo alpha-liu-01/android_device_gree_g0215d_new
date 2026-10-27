@@ -1,0 +1,23 @@
+// Gree's Android 6 ACDB loader, with its SONAME changed to
+// libacdbloader_gree.so. The HAL loads it through the shim below.
+cc_prebuilt_library_shared {
+    name: "libacdbloader_gree",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["libacdbloader_gree.so"],
+    strip: {
+        none: true,
+    },
+    check_elf_files: false,
+}
+
+cc_library_shared {
+    name: "libacdbloader",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["acdbloader_shim.c"],
+    shared_libs: [
+        "libacdbloader_gree",
+        "liblog",
+    ],
+}
