@@ -38,6 +38,11 @@
          speaker-and-headphones devices into two routes. -->
     <backend_names>
         <device name="SND_DEVICE_OUT_SPEAKER" backend="quat_mi2s_rx" interface="QUAT_MI2S_RX"/>
+        <!-- Hands-free voice call: same TFA9890 amplifier, so the voice
+             session has to be routed to QUAT_MI2S_RX too ("<usecase>
+             quat_mi2s_rx_voice" paths in mixer_paths_tasha.xml). Without it
+             the HAL falls back to the WCD9335 speaker, which isn't wired. -->
+        <device name="SND_DEVICE_OUT_VOICE_SPEAKER" backend="quat_mi2s_rx_voice" interface="QUAT_MI2S_RX"/>
         <device name="SND_DEVICE_OUT_HEADPHONES" backend="headphones" interface="SLIMBUS_6_RX"/>
         <device name="SND_DEVICE_OUT_ANC_HEADSET" backend="anc-headphones" interface="SLIMBUS_6_RX"/>
         <device name="SND_DEVICE_OUT_LINE" backend="headphones" interface="SLIMBUS_6_RX"/>

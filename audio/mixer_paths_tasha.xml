@@ -1741,29 +1741,51 @@
         <path name="vowlan-call"/>
     </path>
 
+    <!-- The ADSP rejects VSS_IVOCPROC_CMD_TOPOLOGY_COMMIT for the module-based
+         voice topologies in the ACDB (tx 0x10F89 / rx 0x10F8A), which leaves
+         the call connected but silent. "Voice Topology Disable" makes the kernel
+         create the vocproc with VSS_IVOCPROC_TOPOLOGY_ID_NONE instead. The
+         control takes {disable, vsid} and the kernel clears it at call end, so
+         it has to be written on every call; "id" selects the value index.
+         (Step 7F, call audio.) -->
+    <path name="voicemmode1-no-topology">
+        <ctl name="Voice Topology Disable" id="0" value="1" />
+        <ctl name="Voice Topology Disable" id="1" value="297816064" />
+    </path>
+
+    <path name="voicemmode2-no-topology">
+        <ctl name="Voice Topology Disable" id="0" value="1" />
+        <ctl name="Voice Topology Disable" id="1" value="299651072" />
+    </path>
+
     <path name="voicemmode1-call">
         <ctl name="SLIM_0_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer SLIM_0_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call headphones">
         <ctl name="SLIM_6_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer SLIM_0_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call anc-headphones">
         <ctl name="SLIM_6_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer SLIM_0_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call hdmi">
         <ctl name="HDMI_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer SLIM_0_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call bt-sco">
         <ctl name="AUX_PCM_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer AUX_PCM_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call bt-sco-wb">
@@ -1774,11 +1796,13 @@
     <path name="voicemmode1-call afe-proxy">
         <ctl name="AFE_PCM_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer AFE_PCM_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call usb-headphones">
         <ctl name="AFE_PCM_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer AFE_PCM_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
 
     <path name="voicemmode1-call voice-speaker-vbat">
@@ -1789,26 +1813,31 @@
     <path name="voicemmode2-call">
         <ctl name="SLIM_0_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer SLIM_0_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call headphones">
         <ctl name="SLIM_6_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer SLIM_0_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call anc-headphones">
         <ctl name="SLIM_6_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer SLIM_0_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call hdmi">
         <ctl name="HDMI_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer SLIM_0_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call bt-sco">
         <ctl name="AUX_PCM_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer AUX_PCM_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call bt-sco-wb">
@@ -1819,11 +1848,13 @@
     <path name="voicemmode2-call afe-proxy">
         <ctl name="AFE_PCM_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer AFE_PCM_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call usb-headphones">
         <ctl name="AFE_PCM_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer AFE_PCM_TX_MMode2" value="1" />
+        <path name="voicemmode2-no-topology" />
     </path>
 
     <path name="voicemmode2-call voice-speaker-vbat">
@@ -1883,6 +1914,7 @@
      <path name="voicemmode1-call quat_mi2s_rx_voice">
 	<ctl name="QUAT_MI2S_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer SLIM_0_TX_MMode1" value="1" />
+        <path name="voicemmode1-no-topology" />
     </path>
      <path name="audio-ull-playback quat_mi2s_rx">
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia3" value="1" />
@@ -2203,6 +2235,11 @@
 
     <path name="voice-speaker">
         <path name="speaker-mono" />
+    </path>
+
+    <!-- G0215D hands-free voice: TFA9890 on QUAT_MI2S_RX, no codec-side
+         controls (see the note above "speaker-fluid"). -->
+    <path name="voice-speaker quat_mi2s_rx_voice">
     </path>
 
     <path name="voice-speaker-fluid">
