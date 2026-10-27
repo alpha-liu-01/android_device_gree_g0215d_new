@@ -1,4 +1,5 @@
-# Stock input name for the Atmel T15 navigation keys.
+# Stock input name of the Goodix GF816M touch keys (gf816m_keys driver).
+# The fingerprint sensor reads the two capacitive pads beside Home.
 # 139 is APP_SWITCH (recents) on Android 11, not MENU.
 key 102   HOME
 key 139   APP_SWITCH VIRTUAL

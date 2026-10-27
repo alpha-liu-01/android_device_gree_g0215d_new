@@ -344,15 +344,24 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
       - **修复验证**：修改 `system/libhidl/transport/ServiceManagement.cpp` 移除 `!kEnforceVintfManifest` 分支下的 `sleep(1)`，并将二进制补丁实时打入实机 `/system/lib64/libhidlbase.so` 与 `/system/lib/libhidlbase.so`，同时禁用尚未配好固件而后台循环 abort 的 `com.android.bluetooth`。重启用户态后实测：`LightsService` 响应耗时从 `>1000ms` 降至 `<1ms`，`Excessive delay setting light` 与 `HidlServiceManagement` 1 秒阻塞日志彻底清零，触摸与界面切换即点即应。
   - **7H（正面导航键：一颗实体 Home + 两侧虚拟 Back / 最近任务）**：
     - **现象**：`qemu.hw.mainkeys=1` 且 `config_showNavigationBar=false`，软件导航栏被关掉。正面下方中间实体键和两侧虚拟键完全无响应，无法回桌面或后退。
-    - **输入设备**：当前内核只有 `qpnp_pon`（电源 / 音量减）、`gpio-keys`（音量加 / 原 MTP 相机键）、`atmel_mxt_ts T100 touchscreen`。原厂名为 `tiny4412-key` 的独立输入设备不存在；T15 电容键挂在 Atmel 同一节点上。
+    - **输入设备**：修复前内核只有 `qpnp_pon`（电源 / 音量减）、`gpio-keys`（音量加 / 原 MTP 相机键）、`atmel_mxt_ts T100 touchscreen`。原厂还有一个名为 `tiny4412-key` 的输入设备，这一棵内核里没有。
     - **实体 Home 根因**：原厂 DTS 把 PM8994 GPIO 5 标成 `key_home`，`linux,code = 102`（`KEY_HOME`）。当前内核继承 `msm8996-mtp.dtsi`，同一脚被写成 `cam_focus` / `528`（`KEY_FOCUS`）。同时仓库里的 `gpio-keys.kl` 含非法标签 `GREE_KEY`，`KeyLayoutMap` 整文件解析失败，EventHub 回退到 `Generic.kl`（`102 = MOVE_HOME`，不是 Home）。结果：按下实体键内核报 FOCUS，框架不当作导航键。
-    - **两侧虚拟键根因**：原厂 `touch_keyevent` 为 `T15@0=139,1=172,2=158`（MENU / HOMEPAGE / BACK）。工厂 `Gree2_4005_V2.06_20170223.raw` 里 T15 的几何和阈值都在（`XSIZE=1 YSIZE=3`），但 **CTRL = 0**。原厂 `plugin` 的 `ac enable 1` 负责打开 T15；本内核只记录 plugin 写入、不跑 `atmel_stand`，所以电容键从未上报。
+    - **两侧电容键根因**：两块电容键不接 Atmel 触摸屏，而是由 **Goodix GF816M 指纹芯片**经 SPI 读出。原厂 `tiny4412-key` 这个名字就写在原厂内核 Goodix 驱动的字符串里（原厂 `Image` 偏移 `0x1239ec1`）。触摸驱动来自乐视 Le Max 2，那台机器的 `touch_keyevent`（`T15@0=139,1=172,2=158`）会让人以为键在 T15 上。实测排除了这条路：T37 参考值显示 T15 节点（X26 Y15–17，参考约 16300）确实有扫描，但按住两侧键时 delta 始终在 ±11 以内，CTRL 打开、阈值降到 8 也没有任何报文。当前内核没有 Goodix 驱动，SPI5 上也没有设备，所以按键无人读取。
+    - **GF816M 协议**（从原厂 `Image` 反汇编得到）：
+      - 写：`[0xF0, addr_hi, addr_lo, data…]`。
+      - 读：先发 `[0xF0, hi, lo]`，再全双工发 `[0xF1, …]`，长度为 len+1，数据从 rx[1] 开始。两段的 `delay_usecs` 都是 5，SPI mode 0、8 位、1 MHz。
+      - 寄存器：`0x8140` 状态（bit7 就绪；HOME 0x20/0x10、BACK 0x08/0x04、MENU 0x02/0x01，分别是掩码/状态）；`0x8043` 模式（0 图像、1 按键、2 睡眠、3 FF、0x56 调试）；`0x8047` 249 字节配置；`0x8040` 心跳（芯片 `0xC6`，主机每秒写 `0xAA`）；`0x8000` 版本串 `GFx16M`；`0x41E4` 为 `0xBE` 表示固件在跑。
+      - 原厂复位时序：拉高、5 ms、拉低、16 ms、拉高、70 ms，再 `msleep(300)`。固件在芯片 flash 里，原厂的固件下载流程没有照搬。
     - **修复**：
-      1. 重写 `gpio-keys.kl`：去掉 `GREE_KEY`；`102` 与现行内核的 `528` 都映射为 `HOME`，`59` / `766` 映射为 `F1`。
-      2. 新增 `atmel_mxt_ts_T100_touchscreen.kl`：`158 BACK VIRTUAL`、`172 HOME VIRTUAL`、`139 APP_SWITCH VIRTUAL`。
-      3. `init.atmel_ts.sh` 在 `update_cfg` 后遍历对象表，把 T15 CTRL 写成 `ENABLE|RPTEN|ADAPTTHREN`（`0x07`），并重试直到生效；`init.gree.rc` 在 `sys.boot_completed=1` 再跑一次 `keys-only`，避免配置回写把 CTRL 冲掉。
-      4. 内核 DTS `g0215d-msm8996-v3-pmi8996-mtp.dts` 覆盖 `gpio_keys`：GPIO 5 → `102 KEY_HOME`，GPIO 4 → `59 KEY_F1`（下次编 boot 才生效；当前靠 keylayout 把 528 映射成 HOME）。
-    - **实机证明**：T15 CTRL 从 `00` 变为 `07`；`dumpsys input` 显示 `gpio-keys` 使用 `/vendor/usr/keylayout/gpio-keys.kl`，Atmel 使用 `/vendor/usr/keylayout/atmel_mxt_ts_T100_touchscreen.kl`。向 `event2` 注入扫描码 `528` 后，`ActivityTaskManager` 发出 `MAIN/HOME → QuickstepLauncher`。
+      1. 重写 `gpio-keys.kl`：去掉 `GREE_KEY`；`102` 与旧内核的 `528` 都映射为 `HOME`，`59` / `766` 映射为 `F1`。
+      2. 内核新驱动 `drivers/input/misc/gf816m_keys.c`（`CONFIG_INPUT_GF816M_KEYS=y`，匹配 `goodix,gf`）：复位芯片，确认 `0x41E4 == 0xBE`，写入原厂 249 字节配置（原厂 `Image` 偏移 `0x183facc`，末两字节是校验 `0x02 0x01`），切到按键模式，清状态。IRQ 线程读 `0x8140`，上报 `KEY_BACK` / `KEY_MENU`（`KEY_HOME` 只在模块参数 `report_home=1` 时上报，实体 Home 已经走 gpio-keys），再写回 0。每秒一次 ESD 检查：心跳或版本不对就重新初始化。sysfs 有 `mode`（可写）和 `status`。输入设备名沿用原厂的 `tiny4412-key`。
+      3. 内核 DTS `g0215d-msm8996-v3-pmi8996-mtp.dts` 按原厂补上 `spi@7579000`（BLSP1 QUP5，IRQ 99，不开 BAM）和子节点 `goodix_fp@0`：复位 GPIO 51，中断 GPIO 121，供电 `pm8994_l19`。pinctrl 用 GPIO 81/83/84 做 `blsp_spi5`，GPIO 82（MISO）上拉。同一文件还覆盖 `gpio_keys`：GPIO 5 → `102 KEY_HOME`，GPIO 4 → `59 KEY_F1`。
+      4. `drivers/pinctrl/qcom/pinctrl-msm8996.c`：小米这份表把 GPIO 81–84 的 `blsp_spi5` 功能删掉了，`spi_qsd` 因此报 `Can not set spi_default pins`。已按 CAF 原表补回这四行。
+      5. `keylayout/tiny4412-key.kl`：`102 HOME`、`139 APP_SWITCH VIRTUAL`、`158 BACK VIRTUAL`。139 在 Android 11 上要映射成 `APP_SWITCH`（最近任务），不是 `MENU`。
+      6. `overlay/lineage-sdk/lineage/res/res/values/config.xml` 把 `config_deviceHardwareKeys` 和 `config_deviceHardwareWakeKeys` 设为 `83`（Home 1 + Back 2 + App switch 16 + Volume 64）。lineage-sdk 默认是 `64`，Settings → System → Buttons 因此不列出任何导航键。实机在下次整编之前用平台签名的 RRO `org.lineageos.g0215d.buttons` 覆盖 `lineageos.platform`，`cmd overlay lookup` 已读到 `83`。
+    - **撤回的 T15 方案**：之前为 T15 做的改动全部撤回。工厂 raw 恢复原样（CRC `53A963`，T15 CTRL `00`、阈值 `0x32`）。`init.atmel_ts.sh` 去掉 T15 逻辑，`init.gree.rc` 删掉 `atmel_tp_keys` 服务，`atmel_mxt_ts_T100_touchscreen.kl` 及其在 `device.mk` 的拷贝也删掉。芯片 NVRAM 已写回工厂值并 `BACKUPNV`，`config_csum` 为 `53a963`。T15 在没有按键垫的节点上开着、阈值又是 8，有误报的风险。
+    - **实机证明**：内核 `#19` 开机打印 `gf816m_keys spi32766.0: chip GFx16M fw 01.04.04`。sysfs `status` 读到 `status 0x00 heartbeat 0xc6 fw_state 0xbe`，模式为 `0x01`。按两侧键时 `event2`（`tiny4412-key`）上有成对的 `KEY_MENU` / `KEY_BACK` 按下和抬起，`msmgpio 121` 计到 24 次中断。使用者确认返回和最近任务都能用，实体 Home 仍然正常。重启后 `dumpsys input` 显示 `tiny4412-key` 用的是 `/vendor/usr/keylayout/tiny4412-key.kl`。
+    - **和指纹的关系**：这个驱动只做按键，不提供原厂指纹 HAL `gx_fpd` 要的 `/dev/goodix_fp` 字符设备和图像模式流程。7G 做指纹时要扩展这个驱动，或者换成完整的 Goodix 驱动。两种做法都必须保留按键上报，因为两侧键读的是同一颗芯片。
   - **7C（音频子系统）**：当前日志显示 `audio.primary.default` 因缺 `/dev/snd/pcmC0D0p` 报错。需启用 `hardware/qcom-caf/msm8996/audio` 编出 `audio.primary.msm8996.so`，从实机 `dsp` / `modem` 分区挂载或软链 ADSP 固件，加载 WCD9335 (`tasha`) codec 与 I2C `tfa98xx` 智能功放固件 `tfa98xx.cnt` 及格力 `acdbdata/MTP`。
   - **7D（蓝牙 QCA6174 Rome）**：启用 `android.hardware.bluetooth@1.0-service-qti` 与 `libbt-vendor.so`，提取 `/bt_firmware/image/rampatch_tlv_3.2.tlv` 与 `nvm_tlv_3.2.bin`。
   - **7E（传感器 SSC / ADSP）**：启动 `rmt_storage`、`tftp_server`、SLPI/ADSP 子系统与 `sensors.ssc.so` + `android.hardware.sensors@1.0-service`，读取 `/persist/sensors` 校准数据，恢复 BMI160、AK09915、RPR0521、LPS22HB、SHTC1。
@@ -384,7 +393,19 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **Wi-Fi 2.4G/5G 扫描与连接修复完成**：删除 `/vendor/etc/vintf/manifest/` 下与主 `manifest.xml` 冲突的重复 `android.hardware.wifi.supplicant.xml` 后，`IWifi@1.4` 与 `ISupplicant@1.3` 正常握手，实机已自动连上 5GHz Wi-Fi（`SSID: "Not 6GHz"`, `5765MHz`, `433Mbps`）。固件、`WCNSS_qcom_cfg.ini`、`wpa_supplicant` overlay、feature XML 与 HAL 软件包此前已在设备树里。真正漏进仓库的只有这一处 VINTF 冲突：主 `manifest.xml` 自己声明了 `android.hardware.wifi.supplicant`，HAL 软件包又再装一份 fragment。现已从本仓库和 18.1 树的 `manifest.xml` 中去掉 `ISupplicant`，下次编镜像时只保留软件包自带的 fragment。
 3. **触摸输入“划 4 下才响应、随后完全流畅”的根因与在线根治**：定位到 `system/libhidl/transport/ServiceManagement.cpp` 在 `!kEnforceVintfManifest` 时对每次 `getRawServiceInternal()` 调用执行硬编码 `sleep(1)`（1000ms），导致 `LightsService`（按键灯/背光调节持有 `PowerManagerService` 锁）与 `Settings`（并发查询未注册的 `IDumpstateDevice`/`IPower`/`IBiometricsFingerprint`）反复将主线程与 `android.display` 阻塞数秒。源码改动在 18.1 平台树 `system/libhidl/transport/ServiceManagement.cpp`，不属于本设备仓库；32/64 位 `libhidlbase.so` 已热补丁进实机，并停用后台崩溃循环的 `com.android.bluetooth`。
 
-同日第四轮：正面实体 Home 与两侧虚拟键全部失效，已定位并修复（见步骤 7 实现笔记 7H）。
+同日第四轮：正面实体 Home 与两侧虚拟键全部失效。实体 Home 已能回到桌面。两侧电容键和 Buttons 页当时还没好，见下一轮。
+
+同日第五轮：
+1. **两侧电容键**：使用者确认中间实体 Home 正常，左右返回 / 最近任务没有反应。复测时 T15 CTRL 又是 `00`。只写 RAM 会被下一次 T6 复位冲掉，而 `update_cfg` 在文件 CRC 仍是 `53A963` 时判定配置已一致、整表不重写。现已把工厂 raw 的 T15 CTRL 改为 `03`，配置 CRC 记为 `63AA53`，实机 `config_csum` 为 `63aa53`，对象表 CTRL 保持 `03`。`keys_on` 读数是 `1`，驱动里的软件门是开的。
+2. **Settings → System → Buttons**：lineage-sdk 默认 `config_deviceHardwareKeys=64`，页面不列出 Home / Back / 最近任务。设备树 overlay 与实机 RRO `org.lineageos.g0215d.buttons` 都把它和对应的唤醒位图改成 `83`。`cmd overlay lookup` 读到 `83`。Settings 进程已强制结束后台，重新打开该页即可。Back / 最近任务的熄屏唤醒要等 `system_server` 下次起来才吃到这份资源，也就是下一次重启之后。本机没有 `button-backlight`，所以没有加按键亮度条。
+
+同日第六轮：电容键仍然没有反应。`logcat` 里没有任何 `KEY` / `BACK` / `APP_SWITCH`。当时 T15 CTRL 已是 `03`，阈值仍是工厂的 `50`，实体 Home 正常。把 T15 触摸阈值从 `50` 降到 `8` 并 `BACKUPNV`，芯片校验和变为 `a59c6e`，对应 raw 的配置 CRC 改为 `A59C6E`，避免下次开机 `update_cfg` 把阈值写回 `50`。阈值降到 `8` 时芯片不会自己误报，节点本身是安静的。整表 `update_cfg` 会把手机重启，单字节修改只走 `mem_access` 加 `BACKUPNV`。
+
+同日第七轮：两侧电容键修好，根因是 GF816M 而不是 T15，细节见 7H。
+1. **排除 T15**：T37 参考值和 delta 显示 T15 节点被扫描，但按住两侧键时没有信号。原厂 `tiny4412-key` 来自原厂 Goodix 指纹驱动。
+2. **内核 `#19`**：新增 `gf816m_keys` 驱动，DTS 增加 SPI5 和 `goodix_fp@0`，pinctrl 补回 GPIO 81–84 的 `blsp_spi5`。`#18` 缺这几行 pinctrl，SPI 控制器报 `Can not set spi_default pins`。这一轮重编了内核，属于“本阶段不做”里的例外。内核改动提交为 `462326055766`，已推送到 [`alpha-liu-01/android_kernel_gree_g0215d`](https://github.com/alpha-liu-01/android_kernel_gree_g0215d) 的 `g0215d` 分支。
+3. **boot 镜像**：`/run/media/alpha/YMTC/g0215d/boot-test/boot-gf816m.img`，13615104 字节，`sha256 2f96fb1117bafaa5bfb680de468a0b9bb212cd2ef39d7875ab7b9f480b59380d`。cmdline 和 ramdisk 沿用 `boot-debug4.img`，后者仍是回退用的镜像。刷写前先 `adb root`，`dd` 写 `/dev/block/by-name/boot` 后用 `head -c` 核对 sha256。
+4. **撤回 T15 改动**：本仓库、18.1 设备树和实机 `/system` 都已恢复工厂 raw 和原来的 `init.atmel_ts.sh`，删掉 `atmel_tp_keys` 服务和 Atmel 按键 keylayout。芯片 T15 写回 CTRL `00`、阈值 `0x32` 并 `BACKUPNV`。重启后 `config_csum` 为 `53a963`，`gf816m_keys` 正常探测。
 
 ## 步骤 8：收口
 
@@ -403,7 +424,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包

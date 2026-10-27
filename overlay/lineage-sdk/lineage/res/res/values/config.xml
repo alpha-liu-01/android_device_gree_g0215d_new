@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Front keys: physical Home, capacitive Back and App switch, volume rocker.
+    Bit field: 1 Home, 2 Back, 16 App switch, 64 Volume = 83.
+    Defaults in lineage-sdk are 64, which hides every navigation key
+    from Settings > System > Buttons.
+-->
+<resources>
+    <integer name="config_deviceHardwareKeys">83</integer>
+    <integer name="config_deviceHardwareWakeKeys">83</integer>
+</resources>

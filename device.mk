@@ -80,7 +80,6 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/audio/mixer_paths_tasha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tasha.xml \
     $(LOCAL_PATH)/keylayout/gpio-keys.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/gpio-keys.kl \
     $(LOCAL_PATH)/keylayout/tiny4412-key.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/tiny4412-key.kl \
-    $(LOCAL_PATH)/keylayout/atmel_mxt_ts_T100_touchscreen.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/atmel_mxt_ts_T100_touchscreen.kl \
     $(LOCAL_PATH)/camera/msm8996_camera_G0215D.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/camera/msm8996_camera_G0215D.xml \
     $(LOCAL_PATH)/firmware/A4_2F_4.0_05.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/A4_2F_4.0_05.fw \
     $(LOCAL_PATH)/firmware/Gree2_4005_V2.06_20170223.raw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/Gree2_4005_V2.06_20170223.raw \

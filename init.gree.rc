@@ -91,7 +91,6 @@ on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
 on property:sys.boot_completed=1
     exec - system system -- /system/bin/settings put global adb_enabled 1
     setprop persist.sys.usb.config mtp,adb
-    start atmel_tp_keys
 
 service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-logcat.txt
     user root
@@ -101,12 +100,6 @@ service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-log
 service atmel_tp_init /system/bin/sh /system/bin/init.atmel_ts.sh
     class main
     user root
-    oneshot
-
-service atmel_tp_keys /system/bin/sh /system/bin/init.atmel_ts.sh keys-only
-    class late_start
-    user root
-    disabled
     oneshot
 
 service panel_hold /system/bin/sh /system/bin/panel_hold.sh
