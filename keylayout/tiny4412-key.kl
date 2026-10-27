@@ -1,3 +1,5 @@
+# Stock input name for the Atmel T15 navigation keys.
+# 139 is APP_SWITCH (recents) on Android 11, not MENU.
 key 102   HOME
-key 139   MENU VIRTUAL
+key 139   APP_SWITCH VIRTUAL
 key 158   BACK VIRTUAL

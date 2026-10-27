@@ -1,0 +1,6 @@
+# Atmel mXT T15 capacitive keys on the same input node as T100.
+# Stock touch_keyevent list: T15@0=139, 1=172, 2=158.
+key 139   APP_SWITCH VIRTUAL
+key 158   BACK VIRTUAL
+key 172   HOME VIRTUAL
+key 116   POWER
