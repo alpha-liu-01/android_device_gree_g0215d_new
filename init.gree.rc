@@ -183,6 +183,11 @@ service wcnss_filter /vendor/bin/wcnss_filter
     group bluetooth system
     disabled
 
+service adsprpcd /vendor/bin/adsprpcd
+    class main
+    user media
+    group media
+
 service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-logcat.txt
     user root
     group system root log

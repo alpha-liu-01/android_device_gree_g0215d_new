@@ -74,6 +74,8 @@ BOARD_SUPPORTS_SOUND_TRIGGER := true
 # 0x11C05000", VoiceMMode1). Without this the HAL ignores that parameter and
 # opens the legacy CS-Voice session instead (step 7F, voice audio).
 AUDIO_FEATURE_ENABLED_MULTI_VOICE_SESSIONS := true
+# ADSP loads codec modules (HeaacDecoderModule.so.1, etc.) from /dsp via adsprpcd.
+BOARD_ROOT_EXTRA_SYMLINKS += /vendor/dsp:/dsp
 
 # Bluetooth. QCA6174 "Rome" 3.2 on /dev/ttyHS0. libbt-vendor comes from
 # hardware/qcom-caf/bt and downloads btfw32.tlv / btnv32.bin from

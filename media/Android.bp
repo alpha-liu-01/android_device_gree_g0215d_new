@@ -1,0 +1,21 @@
+// Gree's Android 6 FastRPC daemon (64-bit). The ADSP loads HeaacDecoderModule.so.1
+// and other AVS modules from /dsp (/vendor/dsp) through its default listener.
+cc_prebuilt_binary {
+    name: "adsprpcd",
+    vendor: true,
+    compile_multilib: "64",
+    srcs: ["adsprpcd"],
+    strip: {
+        none: true,
+    },
+    check_elf_files: false,
+}
+
+// Intercepts open("/dev/adsprpc-smd", ...) in Gree's Android 6 libadsprpc.so
+// and issues FASTRPC_IOCTL_GETINFO (domain 0) required by the 4.4 kernel.
+cc_library_shared {
+    name: "libfrp",
+    vendor: true,
+    compile_multilib: "both",
+    srcs: ["libfrp.c"],
+}

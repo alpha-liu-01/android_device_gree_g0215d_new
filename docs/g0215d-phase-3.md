@@ -303,10 +303,10 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 9. 休眠唤醒（背光）
 10. USB 功能切换。文件传输双向、PTP、MIDI、USB 网络共享都切换过，见 7I
 11. 振动。DRV2605 v1.1 已绑定，设置走的 vibrator HAL 能下发定时振动，见 7J。TWRP 里的振动以后再说
+12. 硬件视频和音频编解码。Venus `OMX.qcom.video.decoder.avc` / `OMX.qcom.video.encoder.avc` 与 ADSP `OMX.qcom.audio.decoder.aac`（经 `adsprpcd` 从 `/dsp` 动态加载 `HeaacDecoderModule.so.1`）均已在冷启动后验证通过，见 7K
 
 还没做，按这个优先级：
 
-12. **7K 硬件视频和音频编解码**。这是相机的前提，不过这一关就不开始 7L。7C 只补了 `media_codecs.xml` 让软件播放能出声，Venus 和音频 DSP 编解码当时明确留在外面。视频走 Venus，音频 offload 在 ADSP。验收：播一段视频时用的是硬件解码器，不是 `OMX.google`；硬件编码器能写出一个文件；一段 AAC（或这台机器上有的音频格式）走硬件解码。
 13. **7L 相机**。旧的 7G「进程还在即可、出图留到阶段 5」作废。前后摄都能预览、拍照，并录一段短视频。传感器以 `msm8996_camera_G0215D.xml` 里的 `s5k3p3`、`ov8858` 为准。
 14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。
 
@@ -477,7 +477,25 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **实机**：boot 已刷成 `boot-vibe.img`，内核是 `4.4.302-perf+ #27`。`drv2604_probe` 读到状态 `0x64`，打印 `drv2605 v1.1`，`probe succeeded`。`/sys/class/timed_output/vibrator/enable` 写 500 后从约 486 倒计时到 0。`waveform` 里额定电压寄存器 `0x16` 读回 `0x30`。冷启动后 `vendor.vibrator-1-0` 在跑，`lshal` 有 `IVibrator/default`。`cmd vibrator vibrate 400` 记进 `dumpsys vibrator` 的 Previous vibrations：`OneShot{mDuration=400}`，来源是 Shell command。框架还会去找 1.3，找不到就用 1.0，这条日志可以忽略。SELinux 仍是 permissive。TWRP 的振动没有做。
     - **内核与镜像**：`Image.gz-dtb` 12778075 字节，加载地址 `0x80008000`，结束地址 `0x80c37a5b`，仍低于 ramdisk 的 `0x81000000`。boot 镜像是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-vibe.img`，13619200 字节，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`。cmdline 和 ramdisk 沿用 `boot-audio9.img`。已 `dd` 进 `/dev/block/by-name/boot`，读回的 sha256 一致。这一轮重编了内核，属于“本阶段不做”里的例外。内核改动还没提交。
     - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7j.img`（稀疏格式，1699832352 字节，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`）。里面有 vibrator 服务、`vibrator.default.so`，manifest 有 `android.hardware.vibrator`。这份镜像没有刷。手机上现在跑的是推进去之后的那次启动，boot 是 `boot-vibe.img`。
-  - **7K、7L、7M**：见上面的剩余顺序。7K 是硬件编解码，7L 是相机出图，7M 是指纹解锁。7K 没有记录之前不开始 7L。原来的 7G（相机和指纹只要求进程还在）作废。
+  - **7K（硬件视频与音频编解码：Venus H.264 硬件解码/编码与 ADSP AAC 硬件解码已通过）**：
+    - **Venus 硬件视频编解码**：
+      - 固件 `venus.mdt`、`.b00–.b04` 在 `/vendor/firmware_mnt/image/`，通过 `/system/etc/firmware/` 下的符号链接供内核 `msm_vidc` 加载。
+      - `device.mk` 加入 `libc2dcolorconvert`、`libhypv_intercept`、`libmm-omxcore`、`libOmxCore`、`libOmxVdec`、`libOmxVenc`、`libstagefrighthw`、`libOmxAacEnc`，安装 `media/media_codecs.xml` 与 `media/mediacodec-arm.policy`（在软件 seccomp 策略基础上放行 32 位 OMX 组件需要的 `_llseek` 和 `sysinfo`）。
+      - Android 11 的 `MediaCodecList.cpp`（`GetBuilders`）在 `CCodec::CreateInputSurface()` 非空（软件 Codec2 能建输入 surface）时默认只用 `sOmxNoSurfaceEncoderInfoBuilder`，会把所有 OMX 视频硬件编码器从列表里藏掉。平台树 `frameworks/av/media/libstagefright/MediaCodecList.cpp` 改为始终注册 `sOmxInfoBuilder`，使 `OMX.qcom.video.encoder.avc` / `hevc` 正常暴露。
+    - **ADSP 硬件音频解码（`OMX.qcom.audio.decoder.aac`）失败根因**：
+      - 补进格力原厂 32 位 `libOmxAacDec.so`、在 `hardware/qcom-caf/msm8996/media/mm-core/src/msm8996/registry_table_android.c` 注册 `OMX.qcom.audio.decoder.aac`、并给 `frameworks/av/services/mediacodec/android.hardware.media.omx@1.0-service.rc` 的 `vendor.media.omx` 加上 `audio` 组（使 `mediacodec` 进程有权打开 `0660 root:audio` 的 `/dev/msm_aac`）之后，`OMX.qcom.audio.decoder.aac` 在 `AUDIO_START` 时仍报错：`audio_aio_open` 内核 `q6asm_open_read_write_v2` 发送 `ASM_STREAM_CMD_OPEN_READWRITE_V2`（`0x10d8d`，格式 `ASM_MEDIA_FMT_AAC_V2 = 0x10da6`）被 ADSP 返回 `ADSP_EFAILED`（`0x1`），驱动映射为 `-ENODEV`（`-131`）。
+      - **第一层根因（ADSP 动态模块加载与 `/dsp`）**：审计 `adsp.b08` 符号表与 `/vendor/dsp/map_avs_shared_libs.txt` 发现，MSM8996 的 ADSP 固件只把 MP3 解码器静态编入镜像（`BUILT-IN`），而 AAC（`HeaacDecoderModule.so.1`）、FLAC、ALAC、Vorbis、WMA、Dolby、DTS 等模块都存放在独立的 `dsp` 分区（`/dev/block/by-name/dsp` → `/vendor/dsp`），由 ADSP 在打开对应流时通过 FastRPC 反向调用用户态守护进程 `adsprpcd`（`libadsp_default_listener.so`）从 `/dsp` 动态加载。系统当时既没有跑 `adsprpcd`，根下也没有 `/dsp` 符号链接，所以 ADSP 找不到 `HeaacDecoderModule.so.1`，直接拒绝打开 AAC 流。
+      - **第二层根因（Android 6 `libadsprpc.so` 与 4.4 内核 `adsprpc` 的 `cid` 握手不兼容）**：把原厂 `adsprpcd` 跑起来后，进程陷入每 25 ms 一次的重启循环，`dmesg` 报 `'adsprpc_init_process (1536): error != 0'`。对照 4.4 内核 `drivers/char/adsprpc.c` 发现：4.4 在 `fastrpc_device_open()` 中将 `fl->cid` 初始化为 `-1`（`fl->sctx = NULL`），要求用户态先调 `FASTRPC_IOCTL_GETINFO`（`0xc0045208`，传入域 ID `0` 即 `ADSP_DOMAIN_ID`）分配 `fl->cid` 与 `fl->sctx`，随后才能调 `FASTRPC_IOCTL_INIT`；而格力 Android 6 的 `libadsprpc.so` 打开 `/dev/adsprpc-smd` 后直接调 `FASTRPC_IOCTL_INIT`，因 `fl->cid == -1` 被内核返回 `-ENOTTY` / `-ECHRNG`。
+    - **修复（不改内核）**：
+      1. 编写 `media/libfrp.c`（`media/Android.bp` 编译 32/64 位 `libfrp.so`）：拦截 `open("/dev/adsprpc-smd", ...)`，拿到 fd 后立即下发一次 `ioctl(fd, FASTRPC_IOCTL_GETINFO, &info)`（`info = 0`）。
+      2. 修改 32/64 位 `media/lib{,64}/libadsprpc.so`：该库 `.dynsym` 中没有任何 C++ 符号，将其未使用的 `DT_NEEDED` 项 `libc++.so` 原位替换为等长的 `libfrp.so`，并将 `.dynsym` 中的 `UND open` 符号名指向 `libfrp.so`（`.gnu.version` 置为 `1` 全局未版本化），无需 `LD_PRELOAD` 即可让所有加载 `libadsprpc.so` 的 32/64 位进程自动完成域 0 初始化。
+      3. `BoardConfig.mk` 增加 `BOARD_ROOT_EXTRA_SYMLINKS += /vendor/dsp:/dsp`（`file_contexts` 标签已在 `device/qcom/sepolicy-legacy-um` 中定义），`device.mk` 安装 `adsprpcd`、`libfrp`、`libadsprpc.so`、`libadsp_default_listener.so`、`libOmxAacDec.so`，`init.gree.rc` 增加 `service adsprpcd /vendor/bin/adsprpcd`（`class main`、`user media`、`group media`）。
+    - **实机验证**：冷启动后 `adsprpcd`（`user media`）稳定驻留（`do_sys_poll`），`/dsp -> /vendor/dsp` 生效：
+      - 硬件音频解码：`stagefright -a -N OMX.qcom.audio.decoder.aac /data/local/tmp/tone.aac` 输出 `decoded a total of 92160 bytes`（`148.87 KB/sec`）。
+      - 硬件视频解码：`stagefright -N OMX.qcom.video.decoder.avc /data/local/tmp/h264.mp4` 输出 `decoded a total of 15 frame(s)`（单帧耗时 `2109.00 usecs`）。
+      - 硬件视频编码与解码：`OMX.qcom.video.encoder.avc` 编码生成的 H.264 MP4 及 `stagefright -r` 硬件解码（`159.73 fps`）均通过。测试文件已清理。没有改内核和 boot，仍是 `boot-vibe.img`。
+    - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7k.img`（稀疏格式，1701663264 字节，`sha256 6f62d3e714f6ddf05820003783777c255202916af1e8cfa563d71d50332479b4`）。staging 目录确认含 `/dsp -> /vendor/dsp`、`/vendor/bin/adsprpcd`、32/64 位 `libfrp.so`、`libadsprpc.so`、`libadsp_default_listener.so`、32 位 `libOmxAacDec.so`、`libOmxVdec.so`、`libOmxVenc.so`。这份镜像没有刷。
+  - **7L、7M**：见上面的剩余顺序。7L 是相机出图，7M 是指纹解锁。原来的 7G（相机和指纹只要求进程还在）作废。
 
 ### 事件
 
@@ -574,6 +592,12 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第十六轮：7K 硬件视频与音频编解码，Venus H.264 硬件解码/编码与 ADSP AAC 硬件解码全部通过，细节见 7K。没有动内核和 boot。
+1. **Venus 视频编解码**：补齐 OMX 组件、`media_codecs.xml` 与 `mediacodec.policy`，并在 `MediaCodecList.cpp` 保留 `sOmxInfoBuilder`，解除软件 Codec2 输入 surface 对 OMX 硬件编码器的屏蔽。
+2. **ADSP AAC 解码根因**：MSM8996 的 `adsp.b08` 仅内置 MP3，AAC 需在打开 `/dev/msm_aac` 时经 `adsprpcd` 从 `/dsp`（`/vendor/dsp`）动态加载 `HeaacDecoderModule.so.1`；而原厂 Android 6 的 `libadsprpc.so` 打开 `/dev/adsprpc-smd` 后未调 4.4 内核要求的 `FASTRPC_IOCTL_GETINFO`（域 0），导致 `FASTRPC_IOCTL_INIT` 失败。
+3. **修复**：新增 32/64 位 `libfrp.so` 并在 `libadsprpc.so` 中替换未使用的 `libc++.so` 依赖，在打开 `/dev/adsprpc-smd` 时自动完成域 0 初始化；补上 `/dsp -> /vendor/dsp` 根符号链接、`adsprpcd` 服务、`libOmxAacDec.so` 及 `vendor.media.omx` 的 `audio` 组权限。
+4. **实机与整镜像**：冷启动后 `adsprpcd` 稳定运行，`OMX.qcom.audio.decoder.aac`（解码 `92160` 字节 PCM）、`OMX.qcom.video.decoder.avc` 与 `OMX.qcom.video.encoder.avc` 均验证通过。`system-7k.img` 已编出，`sha256 6f62d3e714f6ddf05820003783777c255202916af1e8cfa563d71d50332479b4`，没有刷。
 
 ## 步骤 8：收口
 
