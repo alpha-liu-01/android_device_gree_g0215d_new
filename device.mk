@@ -46,6 +46,17 @@ $(call inherit-product, $(LOCAL_PATH)/sensors/sensors.mk)
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH)
 
+# CAF IMS client. The jars satisfy the OnePlus ims.apk uses-library lines.
+PRODUCT_PACKAGES += \
+    ims \
+    ims-ext-common \
+    ims_ext_common.xml \
+    qti-telephony-utils \
+    qti_telephony_utils.xml \
+    qti-telephony-hidl-wrapper \
+    qti_telephony_hidl_wrapper.xml \
+    privapp_whitelist_org_codeaurora_ims
+
 # Display, GPU, Audio, Lights, Wi-Fi, Health, Keymaster
 PRODUCT_PACKAGES += \
     gralloc.msm8996 \

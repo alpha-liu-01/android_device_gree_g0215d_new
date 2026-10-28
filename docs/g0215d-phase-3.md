@@ -307,7 +307,7 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
 14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮
 
-不挡住这次收口，但成品 ROM 还要做：短信、VoLTE/IMS、第二张卡、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing、加密和可刷写的安装包。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing、加密和可刷写的安装包。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -316,7 +316,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 阶段 3 的交互验收已经做完。下面是到一套可以交给别人刷的 18.1 为止还要做的事，按建议的顺序。第 1 项已经做完，见同日第三十七轮。阶段 4（从 userdata 划出 vendor，再接到小米 `lineage-22.2`）是下一代平台，不排在这张表里。前摄停流偶尔多等 3 秒、冷启动有一次报 0 个相机、`netmgrd` 偶发 Scudo abort 后被 init 拉起，都不单列；做相机或蜂窝时顺手看。
 
 1. **指纹改成强生物识别**。已做，见同日第三十七轮。`config_biometric_sensors` 写成 `0:2:15`，框架按强生物识别登记，成功比对会调用 `addAuthToken`。令牌是 69 字节、版本 0、类型是指纹、HMAC 全 0；这套软件 KeyStore 只拒版本或长度不对的令牌，不校验 HMAC。整机重启后第一次解锁仍要图案，这是 Android 的开机强认证，跟指纹强弱无关。
-2. **VoLTE，连带短信和第二张卡**。硬件是 DSDS（`persist.radio.multisim.config=dsds`），第二张卡日志里是 `ABSENT`，短信没测过，IMS 没起来。目标是中国用户能用 VoLTE；联通这张卡在加拿大也能让国产手机注册 VoLTE，在这台上不行，用它做探针。通话后回 LTE 只有在 VoLTE 没注册、电话落在 3G 上时才重要，跟在这一项后面看，不单独排。
+2. **VoLTE**。短信和第二张卡已经能用。VoLTE 还没注册：框架和 CAF 的 IMS 客户端已经接上，格力自己的 RIL 不提供 `IImsRadio`，所以 IMS 仍是未注册。见同日第三十八轮。没有拨出电话。通话后回 LTE 仍只在电话落到 3G 时才重要，跟在这一项后面看。
 3. **通话能听清**。现在的语音 path 把 vocproc 拓扑关掉了，所以没有回声消除和降噪。听筒和免提有声音，耳机通话和蓝牙 SCO 只改了 mixer，没有测。ADSP 拒绝 `0x10F89` / `0x10F8A` 的原因还没查清。电话要能当电话用，这一项在 VoLTE 之后、安装包之前。
 4. **用户能自己刷的 ROM 包**。现在系统是 adb 推上去的，没有一份 recovery 能刷的 zip。先在当前这块未加密的 data 上做出来，用 2016 年那份已经能挂上 data 的 TWRP 验证刷写。这样后面改 recovery 或加密失败，还有退路。包里要有 boot 和 system，不写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。
 5. **能解密的新 TWRP**。3.0.2 是 2016 年的，对不上 Android 11 的 system-as-root，也解不开文件加密。建议用仍能编进这颗 4.4 内核的 3.7 这一代，不要停在 3.0.2；小版本等开工时按能编过的最新 3.7 定。`#17` 那份 4.4 内核解不开当年用 3.18 ICE 加密的盘。新 recovery 要能解密下一项真正采用的方案，并且能刷第 4 项的包。TWRP 里的振动顺手做，不单列。
@@ -626,6 +626,13 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第三十八轮：VoLTE。原厂这台机的 VoLTE 从来没注册过，所以没有把原厂 6.0 的 `ims.apk` 和那套关掉的开关搬过来。短信和第二张卡用户确认已经正常。没有拨出电话，没有重编内核，没有刷整镜像，没有动指纹模板和图案。
+
+1. **平台**：`config_device_volte_available` 和 `config_device_vt_available` 写成 true。`persist.dbg.volte_avail_ovr=1`、`persist.dbg.vt_avail_ovr=1`、`persist.radio.calls.on.ims=1`、`persist.radio.jbims=1`。原厂后两项是 0，基带不会去建 IMS PDN。`android.hardware.telephony.ims` 特性打开。`TeleService` 的 `config_ims_mmtel_package` 写成 `org.codeaurora.ims`，`ImsResolver` 才会去绑。
+2. **客户端**：OnePlus 3 的 `org.codeaurora.ims`（实现 `android.telephony.ims.ImsService`），用平台测试密钥重签，放在 `/system/priv-app/ims`。旁边是 `ims-ext-common`、`qti-telephony-utils`、`qti-telephony-hidl-wrapper`，以及 `libimsmedia_jni.so`、`libimscamera_jni.so`。第一次启动缺 `android.hidl.manager.V1_0.IServiceNotification$Stub`，电话进程崩溃；补进 wrapper 之后缺 `libimsmedia_jni.so`，又崩了一次。两处补上之后 `ImsService` 能保持绑定，LTE 回到 Bell。
+3. **守护进程**：`imsqmidaemon`、`imsdatadaemon`、`ims_rtp_daemon`、`imsrcsd`。格力的 `libdsi_netctrl.so`、`libqmiservices.so`、`libcneapiclient.so` 没有换。`imsdatadaemon` 链的是私有的 `libdsi_imsctrl.so`（多出 `dsi_query_link_local_network_handle`）、`libds_imsu.so`、`qd_ims.so`，外加 `libcneimsclient.so`（格力的 CNE 没有带卡槽参数的 `CreateCneNetworkRequest`）和本地的 `libandroid_net.so`。`imsdatadaemon` 必须用 root 起：内核 IPC router 的 bind 要 `CAP_NET_RAW`，`user system` 时 dmesg 是 `imsdatadaemon Do not have permissions`，DCM 注册失败。改成 root 之后 `qmi_dcm_register_service rc : 0`。
+4. **实机**：联通卡漫游在 Bell LTE，小区 `LteVopsSupportInfo mVopsSupport=1`。`ImsService` 已绑定。`registered=false`，`registrationTechnology=-1`。`ImsSenderRxr` 报 `ImsRadio HAL is not available`，`lshal` 里没有 `vendor.qti.hardware.radio.ims`。这个 HAL 在 OnePlus 的 `libril-qc-qmi-1.so` 里，格力自己的 RIL 没有。没有换这颗 RIL，避免把已经通的驻网、短信和第二张卡换掉。没有拨出电话，所以还不能说 4G 来电能响。
 
 同日第三十七轮：指纹改成强生物识别。没有重编内核，没有动模板和图案，没有刷整镜像。
 1. **原因**：`config_biometric_sensors` 是空数组。`AuthService` 不会调用 `initConfiguredStrength`，`mOEMStrength` 停在 0，`isStrongBiometric()` 为假。锁屏成功仍走 `onAuthenticationSucceeded`，日志是 `Skipping addAuthToken`。长时间不用之后，非强生物识别还可能被要求先输入图案。应用密钥也认不了这枚指纹。

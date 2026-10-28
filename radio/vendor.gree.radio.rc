@@ -104,3 +104,46 @@ service ril-daemon2 /vendor/bin/hw/rild -c 2
 
 on property:persist.radio.multisim.config=dsds
     start ril-daemon2
+
+# CAF IMS (OnePlus 3). Not the stock Gree 6.0 ims.apk: that build never
+# registered VoLTE, and its service action is not android.telephony.ims.ImsService.
+# imsdatadaemon is linked against libdsi_imsctrl.so, a private copy of the
+# OnePlus libdsi_netctrl that exports dsi_query_link_local_network_handle.
+# The data stack keeps Gree's libdsi_netctrl.so.
+# libdsi_imsctrl pulls libds_imsu.so and qd_ims.so (OnePlus dsutils/qdi,
+# renamed so netmgrd keeps the Gree copies). libcneimsclient.so adds the
+# SIM-slot CneFactory symbol the Gree CNE client does not have.
+service vendor.imsqmidaemon /vendor/bin/imsqmidaemon
+    class main
+    user system
+    socket ims_qmid stream 0660 system radio
+    group radio log diag
+    writepid /dev/cpuset/system-background/tasks
+
+# user root: the daemon binds an IPC-router server, which the kernel only
+# allows for CAP_NET_RAW / CAP_NET_BIND_SERVICE. It drops to system itself.
+service vendor.imsdatadaemon /vendor/bin/imsdatadaemon
+    class main
+    user root
+    socket ims_datad stream 0660 system radio
+    group system wifi radio inet log diag
+    disabled
+    writepid /dev/cpuset/system-background/tasks
+
+service vendor.ims_rtp_daemon /vendor/bin/ims_rtp_daemon
+    class main
+    user system
+    group radio diag inet log
+    writepid /dev/cpuset/system-background/tasks
+
+service vendor.imsrcsservice /vendor/bin/imsrcsd
+    class main
+    user system
+    group radio diag inet log wakelock
+    writepid /dev/cpuset/system-background/tasks
+
+on property:vendor.ims.QMI_DAEMON_STATUS=1
+    start vendor.imsdatadaemon
+
+on property:vendor.ims.DATA_DAEMON_STATUS=1
+    restart vendor.ims_rtp_daemon

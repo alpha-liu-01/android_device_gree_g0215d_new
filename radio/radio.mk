@@ -14,10 +14,17 @@ PRODUCT_COPY_FILES += \
     $(RADIO_PATH)/etc/sec_config:$(TARGET_COPY_OUT_SYSTEM)/etc/sec_config \
     $(RADIO_PATH)/qcril.db:$(TARGET_COPY_OUT_VENDOR)/qcril.db \
     $(RADIO_PATH)/init.gree.radio.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.gree.radio.sh \
-    $(RADIO_PATH)/vendor.gree.radio.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/vendor.gree.radio.rc
+    $(RADIO_PATH)/vendor.gree.radio.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/vendor.gree.radio.rc \
+    $(RADIO_PATH)/../permissions/android.hardware.telephony.ims.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.hardware.telephony.ims.xml \
+    $(RADIO_PATH)/../proprietary/lib64/libimsmedia_jni.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libimsmedia_jni.so \
+    $(RADIO_PATH)/../proprietary/lib64/libimscamera_jni.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libimscamera_jni.so \
+    $(RADIO_PATH)/../proprietary/lib64/libimsmedia_jni.so:$(TARGET_COPY_OUT_SYSTEM)/priv-app/ims/lib/arm64/libimsmedia_jni.so \
+    $(RADIO_PATH)/../proprietary/lib64/libimscamera_jni.so:$(TARGET_COPY_OUT_SYSTEM)/priv-app/ims/lib/arm64/libimscamera_jni.so
 
 # dsds, LTE/WCDMA/GSM. 22,22 of the stock image selects TD-SCDMA, which
 # Canadian carriers do not use.
+# Stock kept calls.on.ims and jbims at 0, so the modem never brought up
+# the IMS PDN. VoLTE on that image never registered.
 PRODUCT_PROPERTY_OVERRIDES += \
     rild.libpath=/vendor/lib64/libril-qc-qmi-1.so \
     ril.subscription.types=NV,RUIM \
@@ -33,8 +40,10 @@ PRODUCT_PROPERTY_OVERRIDES += \
     persist.radio.custom_ecc=1 \
     persist.radio.relay_oprt_change=1 \
     persist.radio.mt_sms_ack=20 \
-    persist.radio.calls.on.ims=0 \
-    persist.radio.jbims=0 \
+    persist.dbg.volte_avail_ovr=1 \
+    persist.dbg.vt_avail_ovr=1 \
+    persist.radio.calls.on.ims=1 \
+    persist.radio.jbims=1 \
     persist.radio.csvt.enabled=false \
     persist.radio.rat_on=combine \
     persist.timed.enable=true \

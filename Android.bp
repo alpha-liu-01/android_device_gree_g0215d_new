@@ -1,2 +1,20 @@
 soong_namespace {
 }
+
+android_app_import {
+    name: "ims",
+    apk: "proprietary/priv-app/ims/ims.apk",
+    certificate: "platform",
+    privileged: true,
+    dex_preopt: {
+        enabled: false,
+    },
+    required: ["privapp_whitelist_org_codeaurora_ims"],
+}
+
+prebuilt_etc {
+    name: "privapp_whitelist_org_codeaurora_ims",
+    src: "permissions/privapp-permissions-org.codeaurora.ims.xml",
+    filename_from_src: true,
+    sub_dir: "permissions",
+}
