@@ -10,7 +10,9 @@ on fs
     mount_all /vendor/etc/fstab.qcom
 
 on post-fs
-    start bootlog
+    # Do not start bootlog here. /cache is 248 MB. An unbounded logcat fills
+    # it, then keeps running: one core at 100% and several hundred MB RSS.
+    # The service below stays installed for a manual `start bootlog`.
     # sensors.qcom rejects /persist when realpath() differs from the path.
     # The partition is already mounted at /mnt/vendor/persist by mount_all.
     mount none /mnt/vendor/persist /persist bind
@@ -33,6 +35,11 @@ on post-fs-data
     mkdir /data/vendor/bluetooth 0770 bluetooth bluetooth
 
 on boot
+    # This kernel's default governor is performance, so both clusters stay at
+    # their max frequency. interactive is built in and will scale down at idle.
+    write /sys/devices/system/cpu/cpufreq/policy0/scaling_governor interactive
+    write /sys/devices/system/cpu/cpufreq/policy2/scaling_governor interactive
+
     # Bluetooth: the HAL powers the QCA6174 through rfkill0, then libbt-vendor
     # downloads the firmware over /dev/ttyHS0.
     chown bluetooth net_bt /sys/class/rfkill/rfkill0/type
@@ -197,6 +204,7 @@ service mm-qcamera-daemon /vendor/bin/mm-qcamera-daemon
     group camera audio input drmrpc system inet graphics
     setenv LD_PRELOAD libshim_mutex.so
 
+# Manual only. See the note in `on post-fs`.
 service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-logcat.txt
     user root
     group system root log

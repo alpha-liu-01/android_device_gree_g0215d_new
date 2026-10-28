@@ -347,6 +347,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **Wi-Fi 搜不到网络的根因与热修复**：
       - 审计 `logcat` 与 `dmesg` 发现：`/vendor/etc/vintf/manifest.xml` 主文件与 `/vendor/etc/vintf/manifest/android.hardware.wifi.supplicant.xml` 同时声明了 `android.hardware.wifi.supplicant`，导致 `libvintf` 报错 `files are mutually exclusive` 并拒绝解析整个 `/vendor/etc/vintf/manifest/` 目录，进而使 `IWifi` 与 `IHostapd` 无法注册；同时 `WCNSS_qcom_cfg.ini` 中 `gEnableIpTcpUdpChecksumOffload=1` 在旧固件下阻塞扫描，且 `wpa_supplicant` HIDL 服务配置缺失。
       - 修复：移除重复的 `android.hardware.wifi.supplicant.xml` fragment，在 `init.gree.rc` 的 `wpa_supplicant` 服务中加入 `-O/data/vendor/wifi/wpa/sockets -dd`，并将 `WCNSS_qcom_cfg.ini` 中的卸载项关闭。重启用户态（您刚才看到的“手机自己软重启”正是我们在后台执行 `stop && start` 以使 VINTF 生效）后，Wi-Fi 立即成功扫描并自动连上 5GHz 路由（`SSID: "Not 6GHz"`, `5765MHz`, `RSSI: -26`, 协商速率 `433Mbps`）。
+      - **开关弹回（补记）**：主清单后来也去掉了 `ISupplicant`，准备只留 `wpa_supplicant` 的 `LOCAL_VINTF_FRAGMENTS`（`hidl/1.3/manifest.xml`，装到 `/vendor/etc/vintf/manifest/manifest.xml`）。7B 已经把手机上那份 fragment 删了，20:16 推上去的主清单和仓库一致、里面也没有这项。`lshal` 里 `ISupplicant` 只剩 `FC`，`hwservicemanager` 对 1.1–1.3 报 `Cannot find entry in either framework or device manifest`。框架退回 1.0，走 `listInterfaces`。rc 没有 `-i wlan0`，接口要靠 1.1 的 `addInterface`，所以列出 0 个，`setupIface got null iface`，开关约 1 秒回到 `DisabledState`。`wlan0` 和固件是好的（`fwpath=sta`，`QCA6174_REV3_2`）。把编译产物里的 fragment 推回 `/vendor/etc/vintf/manifest/manifest.xml` 并重启。`lshal` 变成 `DM,FC`，1.0 到 1.3 都在。冷启动后自动连上 `Not 6GHz`（5765 MHz，433 Mbps，`10.0.0.108`），`ping 8.8.8.8` 和 `google.com` 都通。没有改设备树，也没有重编内核。下次整镜像会带上同一份 fragment。
     - **“前 4 下滑动慢半拍、随后极度流畅”的根因与根治**：
       - **根因定位**：通过抓取 `/data/system/dropbox/system_app_anr@1793079489824.txt.gz` 与 `system_server` 线程栈发现，由于本机 `PRODUCT_SHIPPING_API_LEVEL := 23`（Android 6.0 首发）未开启 `PRODUCT_ENFORCE_VINTF_MANIFEST`，`system/libhidl/transport/ServiceManagement.cpp` 中的 `kEnforceVintfManifest` 为 `false`。每当任何进程调用 `getRawServiceInternal()` 查询设备清单（或未启动的 HAL，如 `IDumpstateDevice@1.0`、`IPower@1.0`、`IBiometricsFingerprint@2.1`、甚至每次调节亮度/按键背光时 `LightsService::setLight_native` 内部调用 `ILight::getService()`），`libhidlbase.so` 都会无条件执行一段硬编码的 **`sleep(1)`（整整 1000ms 睡眠）**！
       - **锁竞争链条**：当手指触摸屏幕唤醒按键灯或触发窗口切换时，`PhotonicModulator` / `PowerManagerService` 线程持有 `PowerManagerService` 全局锁 `<0x0e5a2d54>` 进入 `setLight_native -> ILight::getService() -> sleep(1)`，导致负责分发触摸焦点与窗口状态的 `android.display` 线程在 `setButtonBrightnessOverrideFromWindowManagerInternal` 上阻塞等待同一把锁；同时 `Settings` 主界面在 `onResume` 时并发查询 `IDumpstateDevice` 等多个未注册 HAL，触发连续数次 `sleep(1)`（正好对应“划 4 下屏幕、等待约 4 秒才有反应，一旦查完缓存住后就 60fps 丝滑无掉帧”）。
@@ -477,6 +478,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **实机**：boot 已刷成 `boot-vibe.img`，内核是 `4.4.302-perf+ #27`。`drv2604_probe` 读到状态 `0x64`，打印 `drv2605 v1.1`，`probe succeeded`。`/sys/class/timed_output/vibrator/enable` 写 500 后从约 486 倒计时到 0。`waveform` 里额定电压寄存器 `0x16` 读回 `0x30`。冷启动后 `vendor.vibrator-1-0` 在跑，`lshal` 有 `IVibrator/default`。`cmd vibrator vibrate 400` 记进 `dumpsys vibrator` 的 Previous vibrations：`OneShot{mDuration=400}`，来源是 Shell command。框架还会去找 1.3，找不到就用 1.0，这条日志可以忽略。SELinux 仍是 permissive。TWRP 的振动没有做。
     - **内核与镜像**：`Image.gz-dtb` 12778075 字节，加载地址 `0x80008000`，结束地址 `0x80c37a5b`，仍低于 ramdisk 的 `0x81000000`。boot 镜像是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-vibe.img`，13619200 字节，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`。cmdline 和 ramdisk 沿用 `boot-audio9.img`。已 `dd` 进 `/dev/block/by-name/boot`，读回的 sha256 一致。这一轮重编了内核，属于“本阶段不做”里的例外。内核改动还没提交。
     - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7j.img`（稀疏格式，1699832352 字节，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`）。里面有 vibrator 服务、`vibrator.default.so`，manifest 有 `android.hardware.vibrator`。这份镜像没有刷。手机上现在跑的是推进去之后的那次启动，boot 是 `boot-vibe.img`。
+    - **相机打开时两侧键不振（补记）**：`msm_sensor_power_up` 成功之后调用 `drv2604_disable_haptics()`，`msm_sensor_power_down` 再调用 `drv2604_enable_haptics()`。这是一加树里的挂钩（`include/linux/drv2604.h`，Sultan，2019）。`disable_refcnt > 0` 时 `vibrator_enable` 直接返回。预览期间传感器一直上电，所以相机开着时两侧键的 `Virtual Key - Press` 会记进 Vibrator Service，电机不动。去掉这两处调用。`boot-cam6.img`（内核 `#34`）已刷，读回一致。预览中注入 BACK，`enable` 剩余读到 26 ms；关掉相机时是 18 ms。两边都是 `config_virtualKeyVibePattern`（`0, 10, 20`）那下大约 10 ms 的点击。MENU 也能读到非 0。相机开着时直接写 `enable` 800，从 790 倒计时到 0。
   - **7K（硬件视频与音频编解码：Venus H.264 硬件解码/编码与 ADSP AAC 硬件解码已通过）**：
     - **Venus 硬件视频编解码**：
       - 固件 `venus.mdt`、`.b00–.b04` 在 `/vendor/firmware_mnt/image/`，通过 `/system/etc/firmware/` 下的符号链接供内核 `msm_vidc` 加载。
@@ -511,8 +513,9 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
       - `camera.msm8996.so` 原位改两条指令：`0x58d3e` 的 `ldr r7, [r1, #28]` 改成 `#52`（`size`），`0x5cb86` 的 `ldr.w sl, [r2, #68]` 改成 `#36`（`unaligned_width`，框架给 BLOB 流请求的大小）。改完是 891308 字节，`sha256 b455af39b59ac91d0c80858c47061e33d370b2d5defcfe9ed4d9fc9a6c192405`。HAL1 的 `QCameraGrallocMemory` 没改，相机走的是 HAL3。
     - **UBWC**：HAL 默认预览和录像都用 UBWC（`CAM_FORMAT_YUV_420_NV12_UBWC`，CPP 日志 `fmt 65`，带 meta plane），给 gralloc 打的是 Android 6 的 `GRALLOC_USAGE_PRIVATE_ALLOC_UBWC`。新 gralloc 只认自己的 `GRALLOC1_PRODUCER_USAGE_PRIVATE_ALLOC_UBWC`（`1 << 28`），两边对缓冲区格式的判断不一致。用法位没有逐位核对。录像时 CPP 访问 IOVA 0，`cam_smmu_check_vaddr_in_range: Cannot find vaddr:0`，`msm_cpp_cfg_frame: page fault occurred`，HAL 报 `camera daemon died`，视频只有 1 帧。`device.mk` 加 `persist.camera.preview.ubwc=0`、`persist.camera.video.ubwc=0`，改用线性 NV12 VENUS。之后录像 39 帧、28 帧，没有 page fault。
     - **系统相机**：手机上没有 `media_profiles`，`CamcorderProfile.hasProfile` 全是 false，`com.android.camera2` 启动就报 `Could not find supported video qualities`。从 cm-14.1 树拿 `configs/media_profiles.xml`，放成 `media/media_profiles_V1_0.xml`，装到 `/vendor/etc`（`sha256 e01989728f2361f1b845922de611f263e452ab249a8ff7d68773c3e9d4319215`）。zygote 预加载 `CamcorderProfile` 时就缓存了 `MediaProfiles`，推完文件要重启才生效。
-    - **还没解决**：有一次冷启动 provider 报 0 个设备，`dumpsys media.camera` 也是 0，系统相机在 `BOOT_COMPLETED` 时把 `CameraLauncher` 禁用了。手动重启 provider 是 2 个，下一次冷启动也是 2 个，启动器跟着恢复。原因没找到，那次的日志没留住。前摄 EEPROM 库 `libmmcamera_sunny_d8v03c_eeprom.so` 原厂包里也没有（`Failed eeprom_load_library`），前摄没有校准数据也能出图。chromatix module 4 仍是空的，`libthermalclient.so` 也没有。调试时把 `persist.camera.global.debug`、`persist.camera.mm-camera` 设成 3，`persist.camera.sensor.debug` 设成 2，只在手机上，没有写进 `device.mk`。
-    - **内核**：当前 boot 是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-cam4.img`，13615104 字节，`sha256 c279eef39239a1de55546e7dfd38d3a7d497b37b4704461277dd2ccf5e850b93`。已刷，读回一致。内核是 `4.4.302-perf+ #32`，`Image.gz-dtb` 12774843 字节，结束地址 `0x80c36dbb`，低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-cam2.img`。上一份 `boot-cam3.img` 是 13615104 字节，`sha256 0a1857ea2924020f0e2295af4389255825c215c9539c6c399306ab89dc21dd7a`。内核改动（设备树、`msm_cam_sensor.h`、`msm_isp_util.c`、`msm_ispif.c` 等）还没提交。`adsprpcd` 还在。
+    - **预览冻结**：`boot-cam4` 上系统相机有三种故障：后摄预览两秒左右定住；切到前摄几秒后定住；再开相机直接报无法连接，没有取景。三种都从 VFE 的 `Drop frame no reg update` 开始。内核 `a9b5f6afbbea`（2017-10，“reconfig regupdate fail buffer”）改了丢帧的处理：错过 reg update 的缓冲区不再报丢，而是留给下一个 SOF（`is_drop_reconfig`、framedrop 周期 1），并且每次 `request_frame` 之后把 `accept_frame` 清零，同一个 SOF 里的第二个请求被拒，内核回空缓冲区（`ISP_ERROR_RETURN_EMPTY_BUFFER`），daemon 记 `iface_axi_handle_output_error: OUTPUT_ERROR`。配套的 daemon 会把自己的请求推后一帧。原厂 daemon 是 2016-10 的，不知道这回事，请求和缓冲区对不上，缓冲区都卡在途中（`queued: 0`），预览定住。之后的会话 `CFG_STREAM` 在 `wait for stream 10003/0 state 4/8 config failed -110` 里卡 9 秒，`force streams to inactive`，daemon 收尾时 `signal 11`，应用报无法连接。`msm_isp_axi_util.c` 把 `msm_isp_drop_frame` 退回旧语义：只把 `bufq_handle & 0xFF` 记进 `reg_update_fail_mask_ext` 报丢，不设 `is_drop_reconfig`，不改 framedrop；`msm_isp_request_frame` 去掉之后的 `accept_frame = false`。`bce627fdfc15` 在 EPOCH1/SOF 中断里开关 `accept_frame` 的部分保留。整个 `git revert a9b5f6afbbea` 合不上，只改这两处，其余 `is_drop_reconfig` 分支不会再走到。换 `boot-cam5` 之后：后摄连续 25 秒、前后摄来回切 6 次（每次停 10 秒）、冷启动 6 次、6 个忙循环压满 CPU 时后摄 40 秒，截图哈希每次都在变，`Drop frame`、`OUTPUT_ERROR`、`force streams to inactive`、`signal 11` 都是 0，daemon 的 pid 没变。旧日志里这四项分别是 18、24、10、12 次。
+    - **还没解决**：从前摄切走或关掉前摄时，有时 VFE1 停流等不到 reg update（`wait for stream 2/1 state 9 config failed -110`，`retry...`），重试一次就停下来，多花 3 秒，后面的会话正常。旧日志里也有，那时会走到 `force streams to inactive`。有一次冷启动 provider 报 0 个设备，`dumpsys media.camera` 也是 0，系统相机在 `BOOT_COMPLETED` 时把 `CameraLauncher` 禁用了。手动重启 provider 是 2 个，下一次冷启动也是 2 个，启动器跟着恢复。原因没找到，那次的日志没留住。前摄 EEPROM 库 `libmmcamera_sunny_d8v03c_eeprom.so` 原厂包里也没有（`Failed eeprom_load_library`），前摄没有校准数据也能出图。chromatix module 4 仍是空的，`libthermalclient.so` 也没有。调试时把 `persist.camera.global.debug`、`persist.camera.mm-camera` 设成 3，`persist.camera.sensor.debug` 设成 2，只在手机上，没有写进 `device.mk`。
+    - **内核**：当前 boot 是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-cam6.img`，13619200 字节，`sha256 bda9f7a70a2e2e205b6b8e3d12a817bb199b934ae8ed2798db68c623f78b6cdc`。已刷，读回一致。内核是 `4.4.302-perf+ #34`，`Image.gz-dtb` 12776755 字节，结束地址 `0x80c37533`，低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-cam2.img`。上一份 `boot-cam5.img`（`#33`）是 13615104 字节，`sha256 5202d87ea5ab34c727f734edaa7d0e266458a12814d5a5ea7ada9d8f0febb009`。再上一份 `boot-cam4.img`（`#32`）是 13615104 字节，`sha256 c279eef39239a1de55546e7dfd38d3a7d497b37b4704461277dd2ccf5e850b93`。内核改动（设备树、`msm_cam_sensor.h`、`msm_isp_util.c`、`msm_isp_axi_util.c`、`msm_ispif.c`、`msm_sensor.c` 等）还没提交。`adsprpcd` 还在。
     - **整镜像**：`/run/media/alpha/YMTC/g0215d/boot-test/system-7l.img`，1745732152 字节，`sha256 205516952e2dd68c8d42e8cd5008be2f80bd7a25eae6aed49a0ee114dc138191`，没有刷。第一次 `m systemimage` 停在 `firmware/cpp_firmware_v1_10_0.fw` 找不到：18.1 树里那份拷贝漏了它，`init.gree.rc`（daemon 的 `LD_PRELOAD libshim_mutex.so`）和 `camera/gree-camera.rc`（provider 的 override）也是旧的。三个文件补齐后重编通过。暂存目录里的 HAL、`libgu2.so`、两个 shim、JPEG 与 3A 库、`media_profiles_V1_0.xml`、两个 rc 和 CPP 固件都和手机上的 md5 一致，`build.prop` 里有两条 `ubwc=0`。
   - **7M**：见上面的剩余顺序。7L 已经通过，下一项是指纹。原来的 7G（相机和指纹只要求进程还在）作废。
 
@@ -612,6 +615,30 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
 
+同日第二十三轮：相机打开时两侧触摸键不振动。boot 换成 `boot-cam6.img`（内核 `#34`），已刷。细节见 7J 的“相机打开时两侧键不振”。
+1. **现象**：系统相机预览时，底部两个电容键按下没有振动。关掉相机就恢复。
+2. **原因**：传感器 `power_up` 成功后把 DRV2605 的 `disable_refcnt` 加一，`vibrator_enable` 在这期间直接返回。预览一直占着传感器。框架仍把按键记成 `Virtual Key - Press`。
+3. **修复**：去掉 `msm_sensor.c` 里对 `drv2604_disable_haptics` / `drv2604_enable_haptics` 的调用。
+4. **实机**：预览中 BACK 和 MENU 都会让 `enable` 读到非 0，和关掉相机时同一段大约 10 ms 的点击。相机开着时写 800 ms 也能倒计时。
+
+同日第二十二轮：CPU 约 25%、内存少了约 1 GB。没有刷内核。
+1. **现象**：四个核里有一个长期满载，整机大约 25%，两簇频率都顶在最高。`MemAvailable` 从今天下午的 2200 MB 左右掉到约 1600 MB。`/cache` 248 MB 用了 98%。
+2. **原因**：`init.gree.rc` 的 `on post-fs` 每次开机执行 `start bootlog`，`logcat` 无限制地写 `/cache/boot-logcat.txt`。文件到 221 MB 后分区满了，进程还在跑，RSS 约 550 MB，占满一个核。频率锁死是另一件事：内核 `CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y`，没有 `schedutil`，开机后两簇一直是 `performance`。
+3. **修复**：去掉自动 `start bootlog`，服务仍留着，要查日志时手动 `start bootlog`。`on boot` 把 `policy0` 和 `policy2` 的 governor 写成 `interactive`。删掉 `/cache/boot-logcat.txt`。`init.gree.rc` 已推到手机，18.1 树里那份也同步了。
+4. **实机**：停掉之后 `logcat` 不在了，`/cache` 剩 226 MB，`MemAvailable` 回到 2168 MB，大核降到 307 MHz。重启后再确认：`bootlog` 没有起来，`MemAvailable` 2244 MB，`interactive` 还在，小核降到 422 MHz。Wi-Fi 仍连着，地址 `10.0.0.110`。
+
+同日第二十一轮：Wi-Fi 开关弹回。细节见 7B 的“开关弹回”。
+1. **现象**：设置里打开 Wi-Fi，大约 1 秒回到关闭。`wlan0` 能起来，固件版本还在。
+2. **原因**：`ISupplicant` 在主清单和 fragment 里都不在。框架退回 1.0，列不出接口。
+3. **修复**：把 `wpa_supplicant` 自带的 VINTF fragment 推回 `/vendor/etc/vintf/manifest/manifest.xml`，重启。
+4. **实机**：自动连上 `Not 6GHz`，5765 MHz，433 Mbps，地址 `10.0.0.108`。没有改设备树，没有动内核。
+
+同日第二十轮：7L 补记，系统相机预览冻结和无法连接。boot 换成 `boot-cam5.img`（内核 `#33`），已刷。细节见 7L 的“预览冻结”。
+1. **现象**：后摄预览两秒定住，切前摄几秒后定住，之后再开相机报无法连接。三种都从 VFE 的 `Drop frame no reg update` 开始。
+2. **原因**：内核 2017 年的 `a9b5f6afbbea` 把错过 reg update 的缓冲区留给下一个 SOF，并在每次 `request_frame` 后拒收同一 SOF 的请求。2016 年的原厂 daemon 不配合，缓冲区卡死，后面的会话 `CFG_STREAM` 超时，daemon 收尾崩溃。
+3. **修复**：`msm_isp_drop_frame` 退回只报丢帧，`msm_isp_request_frame` 不再清 `accept_frame`。
+4. **实机**：后摄 25 秒、前后摄切 6 次、冷启动 6 次、压满 CPU 时后摄 40 秒，预览一直在动，没有丢帧、`OUTPUT_ERROR` 或 daemon 崩溃。前摄停流有时多等 3 秒，重试后能停。没有改用户态文件，整镜像不用重编。内核改动还没提交。
+
 同日第十九轮：7L 相机通过。前后摄都能预览、拍照、录短视频，系统相机冷启动后能拍照。boot 换成 `boot-cam4.img`，已刷。细节见 7L。
 1. **ioctl 尺寸**：原厂库和内核只差两条。`ISP_CFG_STREAM` 是 8 路 handle、不带 `dummy` 的 44 字节，`boot-cam3` 的翻译读错了 `cmd` 的位置。`ISPIF_CFG` 是 368 字节，缺小米加的 `reserved_param`。两条都在内核里翻成现有结构。
 2. **`openCamera` 崩溃**：HAL 在栈上放 Android 6 大小的 `Parcel`，给 `display.qservice` 发消息时写越界。`libgu2.so` 补了 `IQService::asInterface` 和 `Parcel` 的空实现。
@@ -648,7 +675,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`。7L 的相机设备树和 ioctl 尺寸要对上 Android 6 HAL，镜像先后是 `boot-cam2.img`、`boot-cam3.img`、`boot-cam4.img`，内核是 `#32`
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`。7L 的相机设备树和 ioctl 尺寸要对上 Android 6 HAL，镜像先后是 `boot-cam2.img`、`boot-cam3.img`、`boot-cam4.img`、`boot-cam5.img`、`boot-cam6.img`，内核是 `#34`
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包
