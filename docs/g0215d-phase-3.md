@@ -305,14 +305,26 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 11. 振动。DRV2605 v1.1 已绑定，设置走的 vibrator HAL 能下发定时振动，见 7J。TWRP 里的振动以后再说
 12. 硬件视频和音频编解码。Venus `OMX.qcom.video.decoder.avc` / `OMX.qcom.video.encoder.avc` 与 ADSP `OMX.qcom.audio.decoder.aac`（经 `adsprpcd` 从 `/dsp` 动态加载 `HeaacDecoderModule.so.1`）均已在冷启动后验证通过，见 7K
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
+14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮
 
-还没做，按这个优先级：
-
-14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。校准、锁屏密码、电容键的键盘类都已经有了。之前录入的三枚已经手动清掉。查找传感器能过，录入页停在 “Lift, then touch again”。同日第三十五轮把抬手后的再次采集加回来了。真手指还没在这一版上录完，锁屏也还没解开。
-
-不挡住收口，做了就记、不做也不停：短信、VoLTE/IMS、第二张卡、通话后回 LTE 的等待、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：短信、VoLTE/IMS、第二张卡、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing、加密和可刷写的安装包。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
+
+### 距离成品 ROM
+
+阶段 3 的交互验收已经做完。下面是到一套可以交给别人刷的 18.1 为止还要做的事，按建议的顺序。第 1 项已经做完，见同日第三十七轮。阶段 4（从 userdata 划出 vendor，再接到小米 `lineage-22.2`）是下一代平台，不排在这张表里。前摄停流偶尔多等 3 秒、冷启动有一次报 0 个相机、`netmgrd` 偶发 Scudo abort 后被 init 拉起，都不单列；做相机或蜂窝时顺手看。
+
+1. **指纹改成强生物识别**。已做，见同日第三十七轮。`config_biometric_sensors` 写成 `0:2:15`，框架按强生物识别登记，成功比对会调用 `addAuthToken`。令牌是 69 字节、版本 0、类型是指纹、HMAC 全 0；这套软件 KeyStore 只拒版本或长度不对的令牌，不校验 HMAC。整机重启后第一次解锁仍要图案，这是 Android 的开机强认证，跟指纹强弱无关。
+2. **VoLTE，连带短信和第二张卡**。硬件是 DSDS（`persist.radio.multisim.config=dsds`），第二张卡日志里是 `ABSENT`，短信没测过，IMS 没起来。目标是中国用户能用 VoLTE；联通这张卡在加拿大也能让国产手机注册 VoLTE，在这台上不行，用它做探针。通话后回 LTE 只有在 VoLTE 没注册、电话落在 3G 上时才重要，跟在这一项后面看，不单独排。
+3. **通话能听清**。现在的语音 path 把 vocproc 拓扑关掉了，所以没有回声消除和降噪。听筒和免提有声音，耳机通话和蓝牙 SCO 只改了 mixer，没有测。ADSP 拒绝 `0x10F89` / `0x10F8A` 的原因还没查清。电话要能当电话用，这一项在 VoLTE 之后、安装包之前。
+4. **用户能自己刷的 ROM 包**。现在系统是 adb 推上去的，没有一份 recovery 能刷的 zip。先在当前这块未加密的 data 上做出来，用 2016 年那份已经能挂上 data 的 TWRP 验证刷写。这样后面改 recovery 或加密失败，还有退路。包里要有 boot 和 system，不写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。
+5. **能解密的新 TWRP**。3.0.2 是 2016 年的，对不上 Android 11 的 system-as-root，也解不开文件加密。建议用仍能编进这颗 4.4 内核的 3.7 这一代，不要停在 3.0.2；小版本等开工时按能编过的最新 3.7 定。`#17` 那份 4.4 内核解不开当年用 3.18 ICE 加密的盘。新 recovery 要能解密下一项真正采用的方案，并且能刷第 4 项的包。TWRP 里的振动顺手做，不单列。
+6. **手机加密**。放在新 TWRP 能解开之后再开。fstab 现在是 `encryptable=footer`（全盘加密）。4.4 内核对旧的 ICE 映射呈不出 ext4，所以不能沿用当年那套硬件加密就把加密打开，否则 recovery 进不去 data。方案要和上一项目一起定。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
+7. **红外**。原厂有 `com.gree.irremote`，路线图里的内核开关是 `CONFIG_RAON_REMOTE_CTRL_SOC`。板级线索比 FM 和 NFC 清楚，先做。
+8. **FM 收音机**。路线图里对应 `CONFIG_RADIO_SILABS`。原厂有收音机，18.1 上还没接。
+9. **NFC**。`/vendor/etc/permissions/` 里已经放了 NFC 的特性 XML，功能没有做。
+10. **SELinux enforcing**。放在最后。前面每加一个 HAL 都会多一批 denial；现在切只会反复改策略。转之前先补蓝牙、RIL、指纹、相机已经记下来的 denial。在此之前保持 permissive，开机 denial 继续存。
 
 ### 实现笔记
 
@@ -517,7 +529,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **还没解决**：从前摄切走或关掉前摄时，有时 VFE1 停流等不到 reg update（`wait for stream 2/1 state 9 config failed -110`，`retry...`），重试一次就停下来，多花 3 秒，后面的会话正常。旧日志里也有，那时会走到 `force streams to inactive`。有一次冷启动 provider 报 0 个设备，`dumpsys media.camera` 也是 0，系统相机在 `BOOT_COMPLETED` 时把 `CameraLauncher` 禁用了。手动重启 provider 是 2 个，下一次冷启动也是 2 个，启动器跟着恢复。原因没找到，那次的日志没留住。前摄 EEPROM 库 `libmmcamera_sunny_d8v03c_eeprom.so` 原厂包里也没有（`Failed eeprom_load_library`），前摄没有校准数据也能出图。chromatix module 4 仍是空的，`libthermalclient.so` 也没有。调试时把 `persist.camera.global.debug`、`persist.camera.mm-camera` 设成 3，`persist.camera.sensor.debug` 设成 2，只在手机上，没有写进 `device.mk`。
     - **内核**：当前 boot 是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-fp8.img`，13619200 字节，`sha256 42b9f5320b063d42bb9efb45d412eba6cfdc58855488831eb27d072c92ed15c2`。已刷，读回一致。`uname` 是 `4.4.302-perf+ #43 SMP PREEMPT Wed Oct 28 03:10:33 EDT 2026`。`Image.gz-dtb` 12778246 字节，结束地址 `0x80c37b06`，低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-cam7.img`。上一份指纹镜像 `boot-fp7.img` 是 13619200 字节，`sha256 79fa6426223e8e444a8a876467981040acbd158359d3af5bc24fcfb0f3fc0bf6`，`uname` 当时是 `#42`。内核改动（设备树、`msm_cam_sensor.h`、`msm_isp_util.c`、`msm_isp_axi_util.c`、`msm_ispif.c`、`msm_sensor.c`、`mdss_fb.c`、`mdss_dsi_panel.c`、`gf816m_keys.c` 等）还没提交。`adsprpcd` 还在。
     - **整镜像**：`/run/media/alpha/YMTC/g0215d/boot-test/system-7l.img`，1745732152 字节，`sha256 205516952e2dd68c8d42e8cd5008be2f80bd7a25eae6aed49a0ee114dc138191`，没有刷。第一次 `m systemimage` 停在 `firmware/cpp_firmware_v1_10_0.fw` 找不到：18.1 树里那份拷贝漏了它，`init.gree.rc`（daemon 的 `LD_PRELOAD libshim_mutex.so`）和 `camera/gree-camera.rc`（provider 的 override）也是旧的。三个文件补齐后重编通过。暂存目录里的 HAL、`libgu2.so`、两个 shim、JPEG 与 3A 库、`media_profiles_V1_0.xml`、两个 rc 和 CPP 固件都和手机上的 md5 一致，`build.prop` 里有两条 `ubwc=0`。
-  - **7M**：见同日第二十七轮到同日第三十五轮。校准能完成，锁屏密码能写入。查找传感器能过。抬手后的空读会重新打开采集，界面不再说传感器脏了。锁屏比对能启动。真手指还没在这一版上录完，锁屏也还没解开。原来的 7G（相机和指纹只要求进程还在）作废。
+  - **7M**：见同日第二十七轮到同日第三十七轮。校准能完成，锁屏密码能写入。录入从剩余 9 次走到 0，模板 `featrue_0_0_1.dat` 对上编号 `1681692777`。锁屏正确手指 `onAuthenticated(true)`，错误手指 `onAuthenticated(false)`。空读不再报成传感器脏了。解锁之后芯片回到键模式。原来的 7G（相机和指纹只要求进程还在）作废。第三十六轮当时传感器没有写进 `config_biometric_sensors`，那次锁屏跳过了 `addAuthToken`。同日第三十七轮已写成 `0:2:15`，框架按强生物识别登记。
 
 ### 事件
 
@@ -614,6 +626,18 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第三十七轮：指纹改成强生物识别。没有重编内核，没有动模板和图案，没有刷整镜像。
+1. **原因**：`config_biometric_sensors` 是空数组。`AuthService` 不会调用 `initConfiguredStrength`，`mOEMStrength` 停在 0，`isStrongBiometric()` 为假。锁屏成功仍走 `onAuthenticationSucceeded`，日志是 `Skipping addAuthToken`。长时间不用之后，非强生物识别还可能被要求先输入图案。应用密钥也认不了这枚指纹。
+2. **强度**：`overlay/frameworks/base/core/res/res/values/config.xml` 加上 `0:2:15`（传感器 0、指纹、`BIOMETRIC_STRONG`）。重编 `framework-res.apk`，41810820 字节，`sha256 9cb41215d10a53896eb8eb9930022e5467efca4b616bf47daf800c78e3016272`，推到 `/system/framework/framework-res.apk`。清了 `/data/resource-cache` 再拉起框架。运行中的资源读出来是 `0:2:15`。日志是 `AuthService: Registering ID: 0 Modality: 2 Strength: 15`，接着 `FingerprintService: initConfiguredStrengthInternal(15)`。`15 & 0x7FFF` 等于 `BIOMETRIC_STRONG`，下次成功会进 `addAuthToken`。
+3. **令牌**：Goodix 比对成功时按 `hw_auth_token_t` 填 69 字节。版本字节是 0。challenge 是 `fingerprint_authenticate` 传入的 operation id，小端。user id 和 authenticator id 来自 `fingerprint.txt` 的后两列（`[redacted]`、`[redacted]`），小端。类型写成 `0x02000000`，是网络序的 `HW_AUTH_FINGERPRINT`。时间戳 `rev` 成网络序。HMAC 32 字节保持 0。HAL 从消息偏移 16 拷这 69 字节，和 `fingerprint_authenticated_t` 里 hat 的位置一致。`KeyStoreService::addAuthToken` 只检查权限、长度 69 和版本 0，不校验 HMAC。软件 Gatekeeper 的 `ComputeSignature` 也把 HMAC 写成 0。这枚令牌会被收下，不会因为 HMAC 为空被拒。
+4. **实机**：拉起框架后锁屏在听指纹，`Screen state: 1`，`fpalgo_Match_Start`。这一轮没有新的按压，所以还没有 `AddAuthenticationToken` 那一行。Finger 1（`1681692777`）还在，图案 SP handle 仍是 `[redacted]`。`gx_fpd` 在第一次 `stop` 时 `SIGSEGV`，init 拉起后重新载入模板，比对已经重新开始。没有换指纹库，没有换内核。整机重启后第一次解锁仍要图案，这是开机强认证，不是这枚指纹还弱。
+
+同日第三十六轮：录入和锁屏解锁都通过了。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。
+1. **录入**：04:17:51 到 04:18:03，`onEnrollResult` 的剩余次数从 9 走到 0，编号 `1681692777`。最后一帧 `enrolAddImage progress=100`，质量 93，有效比 100。`Done with client: com.android.settings`。`settings_fingerprint.xml` 里是 Finger 1，`featrue_0_0_1.dat` 和 `fingerprint.txt` 对得上。抬手的空读仍是类型 21，HAL 打 `drop acquired imager-dirty`，框架只有 `Acquired: 0`。前面几次 `error = 5` 是查找传感器取消录入，不是失败。
+2. **锁屏**：04:18:17 和 04:18:25 各有一次 `onAuthenticated(false)`，编号 0，对应按错的手指。04:18:20 和 04:18:26 各有一次 `onAuthenticated(true)`，编号 `1681692777`，属主 `com.android.systemui`。成功后 `Set mode:1`。指纹服务计数是接受 3 次、拒绝 2 次、锁定 0 次。`gx_fpd` 没有崩。结束时焦点在桌面，`isKeyguardShowing=false`，芯片模式 `0x01`。
+3. **屏幕状态**：锁屏刚开始听指纹时 `is_screen_on` 是 0，芯片先到 FF 模式 3；手指按上去之后切回图像模式再 `fpalgo_Match_Start`，屏幕状态变成 1。两次解锁都走完了这条路。
+4. **令牌**：成功时日志是 `Skipping addAuthToken`。`config_biometric_sensors` 是空的，传感器强度是 0，不算强生物识别，令牌没有放进 KeyStore。这次用户已经解过锁，锁屏只靠 `onAuthenticationSucceeded` 就能打开。重启后第一次仍要图案。长时间不用之后，非强生物识别可能被要求先输入图案。没有为这个改框架。图案 SP handle 仍是 `[redacted]`。
 
 同日第三十五轮：手动清掉已录入的指纹之后，新的录入第一次能认出传感器，然后停在 “Lift, then touch again”，后面没有进度。两侧电容键还在。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。这一版还没在真手指上录完。
 1. **现象**：查找传感器的第一下有反应，录入页标题是 “Lift, then touch again”。继续按压，进度条不动。短按仍是 Home。

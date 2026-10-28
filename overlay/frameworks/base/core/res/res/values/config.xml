@@ -9,4 +9,10 @@
     <!-- The kernel reports the wired headset through its "Headset Jack" input
          switches; there is no /sys/class/switch/h2w node. -->
     <bool name="config_useDevInputEventForAudioJack">true</bool>
+
+    <!-- Sensor 0, fingerprint, BIOMETRIC_STRONG. An empty array leaves the
+         sensor at strength 0, so lock-screen success skips addAuthToken. -->
+    <string-array name="config_biometric_sensors" translatable="false">
+        <item>0:2:15</item>
+    </string-array>
 </resources>
