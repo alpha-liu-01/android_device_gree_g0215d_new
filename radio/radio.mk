@@ -15,6 +15,9 @@ PRODUCT_COPY_FILES += \
     $(RADIO_PATH)/qcril.db:$(TARGET_COPY_OUT_VENDOR)/qcril.db \
     $(RADIO_PATH)/init.gree.radio.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.gree.radio.sh \
     $(RADIO_PATH)/vendor.gree.radio.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/vendor.gree.radio.rc \
+    $(RADIO_PATH)/ims-radio/imsradio.dex:$(TARGET_COPY_OUT_VENDOR)/bin/imsradio.dex \
+    $(RADIO_PATH)/ims-radio/imsradio:$(TARGET_COPY_OUT_VENDOR)/bin/imsradio \
+    $(RADIO_PATH)/ims-radio/ims_reg_query:$(TARGET_COPY_OUT_VENDOR)/bin/ims_reg_query \
     $(RADIO_PATH)/../permissions/android.hardware.telephony.ims.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.hardware.telephony.ims.xml \
     $(RADIO_PATH)/../proprietary/lib64/libimsmedia_jni.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libimsmedia_jni.so \
     $(RADIO_PATH)/../proprietary/lib64/libimscamera_jni.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libimscamera_jni.so \

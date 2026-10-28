@@ -147,3 +147,12 @@ on property:vendor.ims.QMI_DAEMON_STATUS=1
 
 on property:vendor.ims.DATA_DAEMON_STATUS=1
     restart vendor.ims_rtp_daemon
+
+# IImsRadio V1_0. Not declared in the manifest: a required HAL that fails
+# to register can stall boot. imsradio.dex subclasses the Stub inside ims.apk,
+# so the interface hash stays the one the phone process already checks.
+# ims_reg_query only reads IMSA. Registration changes are not sent onward.
+service vendor.imsradio /vendor/bin/imsradio
+    class main
+    user root
+    group system radio log diag

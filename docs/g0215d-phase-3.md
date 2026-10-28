@@ -316,7 +316,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 阶段 3 的交互验收已经做完。下面是到一套可以交给别人刷的 18.1 为止还要做的事，按建议的顺序。第 1 项已经做完，见同日第三十七轮。阶段 4（从 userdata 划出 vendor，再接到小米 `lineage-22.2`）是下一代平台，不排在这张表里。前摄停流偶尔多等 3 秒、冷启动有一次报 0 个相机、`netmgrd` 偶发 Scudo abort 后被 init 拉起，都不单列；做相机或蜂窝时顺手看。
 
 1. **指纹改成强生物识别**。已做，见同日第三十七轮。`config_biometric_sensors` 写成 `0:2:15`，框架按强生物识别登记，成功比对会调用 `addAuthToken`。令牌是 69 字节、版本 0、类型是指纹、HMAC 全 0；这套软件 KeyStore 只拒版本或长度不对的令牌，不校验 HMAC。整机重启后第一次解锁仍要图案，这是 Android 的开机强认证，跟指纹强弱无关。
-2. **VoLTE**。短信和第二张卡已经能用。VoLTE 还没注册：框架和 CAF 的 IMS 客户端已经接上，格力自己的 RIL 不提供 `IImsRadio`，所以 IMS 仍是未注册。见同日第三十八轮。没有拨出电话。通话后回 LTE 仍只在电话落到 3G 时才重要，跟在这一项后面看。
+2. **VoLTE**。短信和第二张卡已经能用。IMS 仍未注册。当前这张联通卡在 Bell 上的调通已经停下。第四十五轮第 1 项已经做完，见同日第四十六轮：自动选择不是关的，插上移动卡会按卡重选，但不保证落到 `volte_op` 或 `volte_su`。第 2 项已经做完，见同日第四十七轮：`IImsRadio` 在重启后仍由 `lshal` 看到，没有写进 manifest，注册状态按 IMSA 报，现在是未注册。第 3 项已经做完，见同日第四十八轮：移动卡走默认运营商配置时，增强型 4G 不会被关掉。没有换格力的 `libril-qc-qmi-1.so`，没有拨出电话。通话后回 LTE 仍只在电话落到 3G 时才重要，跟在这一项后面看。
 3. **通话能听清**。现在的语音 path 把 vocproc 拓扑关掉了，所以没有回声消除和降噪。听筒和免提有声音，耳机通话和蓝牙 SCO 只改了 mixer，没有测。ADSP 拒绝 `0x10F89` / `0x10F8A` 的原因还没查清。电话要能当电话用，这一项在 VoLTE 之后、安装包之前。
 4. **用户能自己刷的 ROM 包**。现在系统是 adb 推上去的，没有一份 recovery 能刷的 zip。先在当前这块未加密的 data 上做出来，用 2016 年那份已经能挂上 data 的 TWRP 验证刷写。这样后面改 recovery 或加密失败，还有退路。包里要有 boot 和 system，不写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。
 5. **能解密的新 TWRP**。3.0.2 是 2016 年的，对不上 Android 11 的 system-as-root，也解不开文件加密。建议用仍能编进这颗 4.4 内核的 3.7 这一代，不要停在 3.0.2；小版本等开工时按能编过的最新 3.7 定。`#17` 那份 4.4 内核解不开当年用 3.18 ICE 加密的盘。新 recovery 要能解密下一项真正采用的方案，并且能刷第 4 项的包。TWRP 里的振动顺手做，不单列。
@@ -626,6 +626,92 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第四十八轮：VoLTE，做第四十五轮的第 3 项，只查系统侧的运营商配置。没有改配置，没有写 NV，没有加载 MBN，没有拨出电话。
+
+1. **移动卡落到哪份配置**。`46000`、`46002`、`46004`、`46007`、`46008` 的 carrier id 是 1435，名字是 China Mobile。对应文件是 `carrier_config_carrierid_1435_China-Mobile.xml`。里面只有紧急号码进通话记录、TD-SCDMA，以及视频通话中禁止加通话、保持和视频会议。没有 `carrier_volte_available_bool`，没有增强型 4G 的三项。没有 `carrier_config_mccmnc_46000.xml`。香港那份 carrier id 767 里的 `46000` 只是 TD-SCDMA 漫游名单，不是这份卡的配置，也不改 VoLTE。
+2. **缺省值**。框架默认：`enhanced_4g_lte_on_by_default_bool` 是 true，`hide_enhanced_4g_lte_bool` 是 false，`editable_enhanced_4g_lte_bool` 是 true，`carrier_volte_provisioning_required_bool` 是 false。`carrier_volte_available_bool` 默认是 false。`isVolteEnabledByPlatform()` 看到 `persist.dbg.volte_avail_ovr=1` 就返回 true，不会读到那个 false。订阅里还没写过增强型 4G 时，`isEnhanced4gLteModeSettingEnabledByUser()` 用默认的开。两处都过，`Phone.isImsUseEnabled()` 里的 VoLTE 条件才成立。
+3. **实机上的包**。`persist.dbg.volte_avail_ovr` 是 1。`/system/system_ext/priv-app/CarrierConfig/CarrierConfig.apk` 里的 1435 和树里这份一样，没有 VoLTE 项。当前这张卡不是移动卡，没有把它的运营商配置当成移动的结果。
+
+同日第四十七轮：VoLTE，做第四十五轮的第 2 项，补上 `IImsRadio` 1.0。没有换格力的 `libril-qc-qmi-1.so`，没有把 HAL 写进 manifest，没有写 NV，没有加载 MBN，没有拨出电话。注册状态没有写成已注册。
+
+1. **服务**。`vendor.imsradio` 用 `ims.apk` 里的 `IImsRadio.Stub` 注册 `imsradio0` 和 `imsradio1`，接口哈希仍是电话进程原来那份。init 在 `class main` 里拉起，用户是 root。system 用户能连上 IMSA，发送返回 `-16`，所以不放在 system 上。没有写进 manifest。`hwservicemanager` 会记一笔 manifest 里没有这项，注册仍然成功。
+2. **注册状态**。`ims_reg_query` 只读 IMSA 的 `0x20`。这次读到 valid `1`、status `0`，服务日志是 `slot0 IMSA status 0`，按未注册回报，不是已注册。卡 1 没有 SIM，固定报未注册，不再去连 IMSA。改注册、改配置和通话控制都回 `REQUEST_NOT_SUPPORTED`，不发给基带。
+3. **实机**。重启之后 `lshal` 仍有 `vendor.qti.hardware.radio.ims@1.0::IImsRadio/imsradio0` 和 `imsradio1`。电话进程报 `imsRadioV10 availability: available`，1.1 到 1.6 仍不可用。配置请求收到了回应，电话进程没有崩。语音是 Bell LTE，在服务中。SIM 是 `LOADED,ABSENT`。
+4. **哈希**。`modemst1` 仍是第四十四轮的 `690fe5f0a044e9598f8169257f391d47552bdde3ea07441df03d405489b960e5`。`modemst2` 在这次以 root 启动该服务的那次重启之后变成 `522fef7320d93f4d994c66dad9dd739be2bdc0fc84ed85d3a2752f1e8d684765`。更早一次以 system 启动、以及重启前那次 root 的只读 IMSA，哈希都没变。这次没有发 IMSS，也没有写 NV。
+
+同日第四十六轮：VoLTE，做第四十五轮的第 1 项，只读自动选择和 `volte_op` 里的 `IMS_enable`。没有写 NV，没有加载 MBN，没有拨出电话。diag 用完已经切回 USB。读之前和读之后，两份 `modemst` 哈希都是第四十四轮那两个值。
+
+1. **自动选择**。`/nv/item_files/mcfg/mcfg_autoselect_by_uim` 和 Subscription01 都是 1 字节 `0x07`。`mcfg_config_force_load` 和 Subscription01 都是 1 字节 `0x01`。`0` 才会走到 modem 里那句 `autoselection disabled`。`0x07` 不是关。同一段日志里另有 `iccid reselect` 和 `imsi reselect`。固件里没有这三位的枚举名，所以不把每一位单独命名。强制加载是 `0x01`，它只表示要加载已经选中的那份，文件里没有 `volte_op` 这个名字。
+2. **`IMS_enable`**。`volte_op` 尾部名字是 `Volte_OpenMkt-Commercial-CMCC`，`volte_su` 是 `Volte_Subsidized-Commercial-CMCC`。两份里的 `ims/IMS_enable` 内容字节都是 `0x01`。同目录的 `nov_open` 尾部是 `NoV_OpenMkt-Commercial-CMCC`，同一项是 `0x00`。条目前面那个 `0x07` 是属性，别的 1 字节项也有，不是文件内容。
+3. **判断**。插上移动卡时，基带会按卡重选，不会停在「自动选择已关」。重选结果不一定是 `volte_op` 或 `volte_su`，因为移动还有一份 `IMS_enable` 为 `0` 的 `NoV`。选哪一份要看卡号和配置里的匹配，选择表这次没读，也没有激活。
+4. **实机**。语音仍是 Bell UMTS，在服务中。SIM 是 `LOADED,ABSENT`。没有拨出电话。
+
+同日第四十五轮：VoLTE，目标改成准备给国内的中国移动用户测试，不再在当前这张联通卡、Bell 网络上把注册做出来。这一轮只改路线，没有写 NV，没有加载 MBN，没有拨出电话。
+
+第四十三轮里还没做的五条都停掉：
+
+1. **补三个小 NV**。那是为了让这台机当前的基带接受 IMSS。`volte_op` 里已经有 `sms_domain_pref` 和 `ue_usage_setting`。写在这张联通卡的 EFS 上，帮不到以后的移动测试，还可能把这台机的语音域留坏。不做。
+2. **NAS 改语音域**。只作用在当前这次驻网上，而且可能让来电不再回落 3G。不做。
+3. **改 policyman**。第四十四轮已经看到策略文件在。要改的是这台机现在的 EFS，风险高。移动测试用的是移动 MBN 里的策略。不做。
+4. **加载一份 MBN**。原计划是找一份不是 CSFB 的联通配置。三份联通都是 CSFB，没有这份。`volte_op` 和 `volte_su` 是移动的，在这张联通卡上激活是错运营商。不在这台机上激活。
+5. **换整份 modem 固件**。仍然不做。移动的配置已经在现有镜像里。
+
+新的路线。成功标准留给国内的移动卡、移动自己的 LTE：来电时语音制式仍是 LTE。这台机只用来确认短信、驻网和现有通话没有被弄坏。
+
+1. **只读自动选择**。读 `/nv/item_files/mcfg` 里自动选择和强制加载那几个 1 字节，并确认 `volte_op` 里 `IMS_enable` 的取值。不写，不激活。用来判断插上移动卡时基带会不会自己换到 `volte_op` 或 `volte_su`。可行性高，风险低。
+2. **补上真正的 `IImsRadio`**。已做，见同日第四十七轮。格力的 `libril-qc-qmi-1.so` 不换。不在 manifest 里先声明一个起不来的 HAL，也不做一个永远报已注册的空服务。重启之后 `lshal` 能看到 `imsradio`，再考虑写进 manifest。第四十二轮说 HAL 没用，是因为当时的基带拒绝 IMSS；那次拒绝发生在当前这份联通配置上。移动的 `volte_op` 里另有 IMS 项，所以这条回到路线上。可行性中等。风险：HAL 进了 manifest 却注册不上，会拖住开机；转发错了会让电话进程反复崩。做的时候不动这台机的基带。
+3. **运营商配置**。已做，见同日第四十八轮。`persist.dbg.volte_avail_ovr=1` 已经让「设备支持 VoLTE」为真。这棵树里没有单独的 `46000` VoLTE 配置。分发前确认移动卡走默认配置时，增强型 4G 不会被运营商配置关掉。只查系统侧。可行性高，风险低。
+4. **测试交给移动用户**。中国移动卡，在移动自己的 LTE 上，不漫游。通过是 IMSA 状态离开 0，并且来电时语音制式仍是 LTE。如果自动选择没有落到 `volte_op` 或 `volte_su`，那是这次测试之后的事，不在这张联通卡上提前加载。
+
+同日第四十四轮：VoLTE，做第四十三轮的第 1 项，只读盘点。没有写 NV，没有加载 MBN，没有读策略文件的内容，没有拨出电话。diag 用完已经切回 USB。盘点前后两份 `modemst` 的哈希相同。
+
+1. **`/nv/item_files/ims`**：`IMS_enable`（1 字节），`ims_hybrid_enable` 和它的 Subscription01，`qipcall_1xsmsandvoice`、`qipcall_dan_needed`、`qipcall_is_conf_server_refer_recipient` 及后两个的 Subscription01，`qp_ims_plani_config`（128 字节）及 Subscription01。目录在空名字处结束。没有 `qp_ims_reg_config`、`qp_ims_param_config`。
+2. **`/nv/item_files/modem/mmode`**：`device_mode`（1）、`lock_parameters`（82）、`lte_bandpref`（8）及 Subscription01、`lte_bandpref_extn_65_256`（24）、`mmode_1xsxlte_optimization`（51）、`qmi/ui_tty_setting_pri`（1）、`rpm_sys_time`（4）、`scan_scope_rule`（1）、`sd/sdssscr_timers`（204）及 Subscription01、`sw_version`（61）。`voice_domain_pref`、`sms_domain_pref`、`ue_usage_setting` 不在这个目录里。`device_mode`、频段和 `lock_parameters` 的内容没有读。
+3. **`/policyman` 在**。`call_mode`、`svc_mode`、`ue_mode`、`freq_list` 各 1 字节，都有 Subscription01。`current_mcc` 4 字节。`device_config` 24 字节，`device_config.xml` 958 字节。`carrier_policy.xml` 4251 字节，Subscription01 同样大小。`rat_mask` 56 字节。内容没有读。modem 里那句没有持久化设备配置，是代码路径；这份 EFS 上策略文件是存在的。
+4. **MBN**。联通是 `china/cu/commerci/openmkt`（15744 字节）、`subsidiz`（16596）、`lab/test`（11108）。这三条路径里没有 VoLTE。移动的商业配置有 `volte_op` 和 `volte_su`。没有加拿大运营商。EFS `/nv/item_files/mcfg` 里有自动选择、强制加载和版本号这些小文件，内容没有读。没有加载任何一份。
+5. **哈希**。`modemst1`（`sdf1`）`690fe5f0a044e9598f8169257f391d47552bdde3ea07441df03d405489b960e5`，`modemst2`（`sdf2`）`dfbfaa14ad55febfd7314c98a0de77424208a63ffb9daa2aa958c8b5f6fcc91f`。各 2097152 字节。盘点后再算一次，相同。
+6. **实机**。语音仍是 Bell UMTS，在服务中，数据仍未注册。SIM 是 `LOADED,ABSENT`。这是盘点之前那通 3G 来电留下的状态。没有拨出电话。
+
+同日第四十三轮：VoLTE，列出基带侧还能试的事。没有改动。没有拨出电话，没有写新的 NV，没有加载 MBN，没有动 modem 镜像和 `fsg`。
+
+固件里已经有 IMS 的实现，modem 字符串里有 `IMS Disabled/Enabled in NV settings` 和 `RegistrationHandlerVoLTE`。系统侧能发的 IMSS 配置读和写都被拒绝。下面按建议的顺序。每一项都还没做。
+
+做的时候共用这几条边界：继续只用已经试过的 EFS open、read、write、stat。不用 opcode 48，不用 format 和 shred。新文件写进去之后没有试过删除，写错的会留在 `modemst` 里。不写 `device_mode`、频段偏好和 `lock_parameters`，不写 `fsg`，不把 `modemst` 的内容拷进仓库。每次只看 LTE 是否还在、SIM 是否仍是 `LOADED,ABSENT`、IMSA 的 Status 有没有离开 0。不要拨出。现在是联通卡漫游在 Bell。配置写对了，Bell 也未必给这张漫游卡做 IMS。4G 上来电仍响，要在联通自己的 LTE 上才算数。在 Bell 上把语音改成只走 PS，来电可能既不走 IMS，也不再落 3G。
+
+1. **只读盘点**。列出 `/nv/item_files/ims`、`mmode`、policyman（若有），以及 `/vendor/firmware_mnt/image/modem_pr/mcfg/configs` 里联通或 VoLTE 的 MBN 名字。记下 `modemst1` 和 `modemst2` 的哈希。可行性高，这些路径已经碰到过一部分。风险低，只读，不拷分区内容。
+2. **补三个原本不存在的小 NV**。`voice_domain_pref`、`sms_domain_pref`、`ue_usage_setting` 上一轮 stat 是 errno 2。`IMS_enable` 已经是 `0x01`，出厂的 `ims_hybrid_enable` 也是 `0x01`，这两个不够。一次只建一个缺的文件，写法和 `IMS_enable` 一样，取值用语音优先 PS、短信优先 PS、终端以语音为中心。放在运行中的基带里，等到 `modemst` 哈希变了再重启，确认文件还在、LTE 还在，然后重读 IMSS 和 IMSA。可行性中等：基带把 IMS 开关和 NV 绑在一起，这三个还没写过；策略也可能根本不看它们。风险中等：取值写反会把电话固定成 CSFB，或固定成只走 PS。文件留下后不能靠 format 或 shred 清掉。不要一次写一串。
+3. **用 NAS 选网报文改语音域，不写文件**。先读当前的 voice domain，读到了再写成 PS 优先，看 IMSS 的 `0x36` 有没有变，看 IMSA Status。重启后再读一次，确认它落不落盘。可行性中等偏低，运行时参数未必压得过策略，也未必跨过重启。风险中等：读不到原值就不要写。写成只走 PS 之后，IMS 若仍未注册，来电不再回落 3G。
+4. **policyman**。先做第 1 项的目录。只有看到明确关掉 IMS 或漫游 IMS 的那一条，才改那一条。可行性现在低：modem 里有 `No persisted device config from EFS`，策略可能没有从 EFS 读。风险高：改错会丢 LTE 或驻不上网。`device_mode` 现是 `0x01`，不动。
+5. **选用机里已有的 MBN**。`mcfg_sw` 里已有中国、亚太、欧洲、韩国和几家美国运营商，没有加拿大。OnePlus 的 `CU_DS_CSFB_G` 是 CSFB，加载它是往回走，不加载。AT&T 和 T-Mobile 的 MBN 对不上联通，也不为 Bell 去载。先在现有 `mcfg` 里找名字像联通、而且不是 CSFB 的配置。找到之后用 PDC 选择，激活前记下当前配置。激活后看 LTE、SIM，以及 IMSS 是否还回 `0x36`。可行性中等偏低：原厂这台机的 VoLTE 从来没用过，出厂配置可能就是不注册 IMS。风险高：PDC 激活写进 `modemst`，影响频段、紧急呼叫和 IMS。回退不是删一个小文件。不写 `fsg`，不刷 modem 镜像。
+6. **换整份 modem 固件**。可行性低：镜像里已经有 IMS 和 VoLTE 的实现，缺的不是这层代码。风险很高：SIM、驻网和开机都不押在这上面。不做。
+
+顺序停在这里。真正动手时先做第 1 项。第 2 项是第一件写入，一次只写一个文件。第 5 项和第 6 项要等第 2 项没有改变 IMSS 的 `0x36` 再考虑，第 6 项不进入实施。
+
+同日第四十二轮：VoLTE，在改基带之前看系统侧还有没有别的办法。没有拨出电话，没有写 NV，没有换 MBN，没有换格力的 `libril-qc-qmi-1.so`，没有把 `IImsRadio` 写进 manifest，没有重编内核，没有刷整镜像。实机仍是联通卡漫游在 Bell LTE。
+
+1. **不是写坏了请求**：上一轮写开启用的是 QCRIL 自己的报文布局。这一轮改读几条空请求，库能编码的 IMSS 读取（`0x25`、`0x26`、`0x27`、`0x28`、`0x34`、`0x3f`、`0x54`、`0x61`）基带都回 result `1`、error `0x36`、附带值 `3`。写开启仍是附带值 `4`。空请求也被拒，所以不是请求体填错。`0x56` 回了空的成功，RIL 并不用它下发配置。
+2. **IMSA**：注册查询成功，有效，状态仍是未注册。288 字节里没有失败原因，也没有 P-CSCF 地址。服务状态查询也成功，几个状态字段有效且是 0。基带没有在走 SIP 注册。
+3. **结论**：`IImsRadio`、运营商配置和 IMS APN 最后都要落到这些 IMSS 配置报文上，而基带现在一律拒绝。系统侧没有下一条能单独做完的修复。下一步才是基带配置。电话停在 Bell LTE，SIM 是 `LOADED,ABSENT`，`ImsService` 仍绑定。没有拨出电话。
+
+同日第四十一轮：VoLTE，向基带发一次 IMS 服务开启，看注册状态会不会离开 0。没有拨出电话，没有换格力的 `libril-qc-qmi-1.so`，没有把 `IImsRadio` 写进 manifest，没有重编内核，没有刷整镜像，没有动指纹模板和图案。实机仍是联通卡漫游在 Bell LTE。
+
+1. **报文**：`qcril_qmi_imss_get_ims_reg_config` 发的是 IMSS 消息 `0x26`，应答 280 字节。`qcril_qmi_imss_request_set_ims_registration` 发的是消息 `0x21`，请求 264 字节，末尾两字节是开关的 valid 和值。上一轮日志里的 `qmi send sync res 0` 只是传输返回值。这次用同一套 IDL（IMSS 主版本 1、次版本 `0x26`、库版本 6）直接问基带。读和写的传输都是 0，应答正文是失败：result `1`，error `0x36`。读配置时后面一个有效字段是 `3`，把开关写成 valid `1`、值 `1` 时这个字段是 `4`。应答末尾那两个开关字节仍是 0。`persist.radio.disable_modem_cfg` 不是 `true`，QCRIL 不会在这一步假装成功。
+2. **注册**：IMSA 消息 `0x20` 在写入前后都查成功。注册有效位是 1，状态仍是未注册，和 RIL 里的 `IMS registered valid 1, Status 0` 一致。等 8 秒再读，字节没有变。
+3. **实机**：没有重启 rild。电话停在 Bell LTE，SIM 是 `LOADED,ABSENT`。`ImsService` 仍绑定。没有拨出电话。
+
+同日第四十轮：VoLTE，让 `IMS_enable` 跨过重启，并看 IMSA/IMSS 是否出现。没有拨出电话，没有换格力的 `libril-qc-qmi-1.so`，没有把 `IImsRadio` 写进 manifest，没有重编内核，没有刷整镜像，没有动指纹模板和图案。实机仍是联通卡漫游在 Bell LTE。
+
+1. **落盘**：`/nv/item_files/ims/IMS_enable` 写成 1 字节 `0x01`。上一轮刚写完就重启，文件会丢。这次在基带里放了一段时间，`modemst1` 和 `modemst2` 的内容变了，再重启文件还在，读回仍是 `0x01`。diag 的 sync opcode 48 仍被基带当成非法命令，没有用它，也没有试 format 和 shred。同目录出厂就有的 `ims_hybrid_enable` 读出来也是 `0x01`。`/efs_force_shutdown_sync` 刚写完立刻重启会丢，隔一会儿再重启则还在。这个标记不是 IMS 起来的原因。
+2. **QMI**：文件在开机时已经存在之后，QCRIL 读 IMSS 的 `qcril_qmi_imss_get_ims_reg_config` 和 `get_client_provisioning_config` 都是 `qmi send sync res 0`。IMSA 的状态变成 `IMS registered valid 1, Status 0`。上一轮这两路在 Bell LTE 上一直是 `qmi_client_init_instance returned failure(-3)`。`RIL_REQUEST_IMS_REGISTRATION_STATE` 仍有一次失败，但 IMSA 自己的状态已经能读到，而且是未注册。电话停在 Bell LTE 时 Status 仍是 0。
+3. **实机**：单独把两边的 rild 一起拉起来时，无线电会停在 Unknown，整机重启后回到 Bell LTE，SIM 是 `LOADED,ABSENT`。`ImsService` 仍绑定。`ImsRadio HAL is not available` 还在，没有注册 `imsradio0`。没有拨出电话。
+
+同日第三十九轮：VoLTE，查 `ImsRadio HAL is not available` 和 `registered=false`。没有拨出电话，没有换格力的 `libril-qc-qmi-1.so`，没有把 `IImsRadio` 写进 manifest，没有重编内核，没有刷整镜像，没有动指纹模板和图案。实机仍是联通卡漫游在 Bell LTE。
+
+1. **HAL**：CAF 的 `ims.apk` 只找 HIDL 实例 `imsradio0` / `imsradio1` / `imsradio2`，dex 里没有 `rild_ims`。格力 RIL 已经在听 `/dev/socket/qmux_radio/rild_ims0` 和 `rild_ims1`，但不会 `registerAsService("imsradioN")`。`lshal` 里仍然没有 `vendor.qti.hardware.radio.ims`。这个客户端接不上旧 socket，所以日志一直是 HAL 不可用。
+2. **基带**：电话已经注册在 Bell LTE 时，QCRIL 连 IMSA 和 IMSS 仍是 `qmi_client_init_instance returned failure(-3)`。IDL 里 IMSA 的 service id 是 `0x21`，IMSS 是 `0x12`。`RIL_REQUEST_IMS_REGISTRATION_STATE` 因此是 `GENERIC_FAILURE`。只把 HAL 补出来，基带不提供这两路 QMI，IMS 也注册不上。modem 镜像里有 `IMSS` / `VoLTE` 字符串，服务只是没有注册上来。
+3. **EFS**：`/nv/item_files/ims` 目录在，`IMS_enable` 原来不存在。用 diag 的 EFS open/write/close 写成 1 字节 `0x01`，当时 `stat` 大小是 1，读回也是 `0x01`。重启之后这个文件没了（`stat` errno 2），IMSA 仍超时。opcode 48 的 sync 被基带当成非法命令退回，没有再试别的 opcode（里面有 format 和 shred）。OnePlus 的联通商业 MBN 名字是 `CU_DS_CSFB_G`，策略是 CSFB，不是 VoLTE，没有加载。
+4. **实机**：调查中单独重启过 slot 0 的 rild，调制解调器停在 LPM，两边的 rild 一起拉起来之后回到 Bell LTE。`ImsService` 仍绑定。`persist.radio.adb_log_on=1` 才看得到这些 QCRIL 日志。
 
 同日第三十八轮：VoLTE。原厂这台机的 VoLTE 从来没注册过，所以没有把原厂 6.0 的 `ims.apk` 和那套关掉的开关搬过来。短信和第二张卡用户确认已经正常。没有拨出电话，没有重编内核，没有刷整镜像，没有动指纹模板和图案。
 

@@ -1,0 +1,3 @@
+#!/vendor/bin/sh
+export CLASSPATH=/vendor/bin/imsradio.dex:/system/priv-app/ims/ims.apk
+exec /system/bin/app_process64 /system/bin vendor.gree.ims.ImsRadioService
