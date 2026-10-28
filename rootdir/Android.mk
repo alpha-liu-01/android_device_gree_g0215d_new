@@ -21,4 +21,10 @@ $(G0215D_RFS): $(LOCAL_PATH)/../radio/mkrfs.sh
 
 ALL_DEFAULT_INSTALLED_MODULES += $(G0215D_RFS)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := fbe-policy
+LOCAL_SRC_FILES := fbe-policy.c
+LOCAL_MODULE_TAGS := optional
+include $(BUILD_EXECUTABLE)
+
 endif

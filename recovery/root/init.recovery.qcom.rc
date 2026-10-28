@@ -7,6 +7,43 @@ on init
     # ueventd creates by-name under the ufshc platform device. The fstab
     # uses the bootdevice alias that the normal boot ueventd would add.
     symlink /dev/block/platform/soc/624000.ufshc /dev/block/bootdevice
+    # Decrypt runs as soon as recovery starts. Both HALs have to be
+    # registered before the pattern page, or the first try is rejected.
+    start vendor.keymaster-4-0
+    start vendor.gatekeeper-1-0
+
+# FBE keys are wrapped by the software keymaster. hwservicemanager starts
+# these on demand. Gatekeeper is only needed once a screen lock exists.
+service vendor.keymaster-4-0 /vendor/bin/hw/android.hardware.keymaster@4.0-service
+    interface android.hardware.keymaster@4.0::IKeymasterDevice default
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+service vendor.gatekeeper-1-0 /vendor/bin/hw/android.hardware.gatekeeper@1.0-service.software
+    interface android.hardware.gatekeeper@1.0::IGatekeeper default
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+# Pattern unwrap asks init to start these by name. The copied keystore
+# lives under /tmp so a failed try cannot rewrite the keys on /data.
+# keystore_auth must be the system user: keystore refuses an auth token
+# from root.
+service keystore /system/bin/keystore /tmp/misc/keystore
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+service keystore_auth /system/bin/keystore_auth
+    user system
+    group root
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
 
 on boot
     write /sys/class/graphics/fb0/blank 0

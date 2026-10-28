@@ -154,6 +154,15 @@ TW_NO_SCREEN_TIMEOUT := true
 TW_IGNORE_MAJOR_AXIS_0 := true
 TW_INCLUDE_CRYPTO := true
 TW_USE_FSCRYPT_POLICY := 1
+# Software keymaster 4.0 unwraps the FBE keys. The ramdisk had the client
+# libraries only, so hwservicemanager never found a service to start.
+TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
+    $(TARGET_OUT)/lib64/libkeymaster4.so \
+    $(TARGET_OUT)/lib64/libpuresoftkeymasterdevice.so
+# /vendor in the ramdisk is a symlink to /system/vendor, and that symlink is
+# absolute, so the usual vendor/bin/hw relink writes onto the host. Copy
+# straight into system/vendor while the ramdisk is packed.
+BOARD_RECOVERY_IMAGE_PREPARE = mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/system/vendor/bin/hw && cp -f $(TARGET_OUT)/vendor/bin/hw/android.hardware.keymaster@4.0-service $(TARGET_OUT)/vendor/bin/hw/android.hardware.gatekeeper@1.0-service.software $(TARGET_RECOVERY_ROOT_OUT)/system/vendor/bin/hw/
 TW_EXCLUDE_APEX := true
 TW_EXCLUDE_MTP := true
 TW_EXCLUDE_NANO := true

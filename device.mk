@@ -59,6 +59,7 @@ PRODUCT_PACKAGES += \
 
 # Display, GPU, Audio, Lights, Wi-Fi, Health, Keymaster
 PRODUCT_PACKAGES += \
+    fbe-policy \
     gralloc.msm8996 \
     hwcomposer.msm8996 \
     memtrack.msm8996 \
@@ -145,6 +146,7 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
     $(LOCAL_PATH)/rootdir/etc/fstab.qcom:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.qcom \
+    $(LOCAL_PATH)/rootdir/fbe-migrate.sh:$(TARGET_COPY_OUT_SYSTEM)/bin/fbe-migrate.sh \
     $(LOCAL_PATH)/rootdir/etc/fstab.ramdisk:$(TARGET_COPY_OUT_RAMDISK)/fstab.qcom \
     $(LOCAL_PATH)/rootdir/etc/ueventd.qcom.rc:$(TARGET_COPY_OUT_VENDOR)/ueventd.rc \
     $(LOCAL_PATH)/audio/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
