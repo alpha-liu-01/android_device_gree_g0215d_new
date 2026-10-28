@@ -308,7 +308,7 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 
 还没做，按这个优先级：
 
-14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。
+14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。校准、锁屏密码、电容键的键盘类都已经有了。之前录入的三枚已经手动清掉。查找传感器能过，录入页停在 “Lift, then touch again”。同日第三十五轮把抬手后的再次采集加回来了。真手指还没在这一版上录完，锁屏也还没解开。
 
 不挡住收口，做了就记、不做也不停：短信、VoLTE/IMS、第二张卡、通话后回 LTE 的等待、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
@@ -515,9 +515,9 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
     - **系统相机**：手机上没有 `media_profiles`，`CamcorderProfile.hasProfile` 全是 false，`com.android.camera2` 启动就报 `Could not find supported video qualities`。从 cm-14.1 树拿 `configs/media_profiles.xml`，放成 `media/media_profiles_V1_0.xml`，装到 `/vendor/etc`（`sha256 e01989728f2361f1b845922de611f263e452ab249a8ff7d68773c3e9d4319215`）。zygote 预加载 `CamcorderProfile` 时就缓存了 `MediaProfiles`，推完文件要重启才生效。
     - **预览冻结**：`boot-cam4` 上系统相机有三种故障：后摄预览两秒左右定住；切到前摄几秒后定住；再开相机直接报无法连接，没有取景。三种都从 VFE 的 `Drop frame no reg update` 开始。内核 `a9b5f6afbbea`（2017-10，“reconfig regupdate fail buffer”）改了丢帧的处理：错过 reg update 的缓冲区不再报丢，而是留给下一个 SOF（`is_drop_reconfig`、framedrop 周期 1），并且每次 `request_frame` 之后把 `accept_frame` 清零，同一个 SOF 里的第二个请求被拒，内核回空缓冲区（`ISP_ERROR_RETURN_EMPTY_BUFFER`），daemon 记 `iface_axi_handle_output_error: OUTPUT_ERROR`。配套的 daemon 会把自己的请求推后一帧。原厂 daemon 是 2016-10 的，不知道这回事，请求和缓冲区对不上，缓冲区都卡在途中（`queued: 0`），预览定住。之后的会话 `CFG_STREAM` 在 `wait for stream 10003/0 state 4/8 config failed -110` 里卡 9 秒，`force streams to inactive`，daemon 收尾时 `signal 11`，应用报无法连接。`msm_isp_axi_util.c` 把 `msm_isp_drop_frame` 退回旧语义：只把 `bufq_handle & 0xFF` 记进 `reg_update_fail_mask_ext` 报丢，不设 `is_drop_reconfig`，不改 framedrop；`msm_isp_request_frame` 去掉之后的 `accept_frame = false`。`bce627fdfc15` 在 EPOCH1/SOF 中断里开关 `accept_frame` 的部分保留。整个 `git revert a9b5f6afbbea` 合不上，只改这两处，其余 `is_drop_reconfig` 分支不会再走到。换 `boot-cam5` 之后：后摄连续 25 秒、前后摄来回切 6 次（每次停 10 秒）、冷启动 6 次、6 个忙循环压满 CPU 时后摄 40 秒，截图哈希每次都在变，`Drop frame`、`OUTPUT_ERROR`、`force streams to inactive`、`signal 11` 都是 0，daemon 的 pid 没变。旧日志里这四项分别是 18、24、10、12 次。
     - **还没解决**：从前摄切走或关掉前摄时，有时 VFE1 停流等不到 reg update（`wait for stream 2/1 state 9 config failed -110`，`retry...`），重试一次就停下来，多花 3 秒，后面的会话正常。旧日志里也有，那时会走到 `force streams to inactive`。有一次冷启动 provider 报 0 个设备，`dumpsys media.camera` 也是 0，系统相机在 `BOOT_COMPLETED` 时把 `CameraLauncher` 禁用了。手动重启 provider 是 2 个，下一次冷启动也是 2 个，启动器跟着恢复。原因没找到，那次的日志没留住。前摄 EEPROM 库 `libmmcamera_sunny_d8v03c_eeprom.so` 原厂包里也没有（`Failed eeprom_load_library`），前摄没有校准数据也能出图。chromatix module 4 仍是空的，`libthermalclient.so` 也没有。调试时把 `persist.camera.global.debug`、`persist.camera.mm-camera` 设成 3，`persist.camera.sensor.debug` 设成 2，只在手机上，没有写进 `device.mk`。
-    - **内核**：当前 boot 是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-keys.img`，13619200 字节，`sha256 529562fbc2ab3d3a1f13ce792890a69daf27a33d30f3e462b875f7bf40a4c069`。已刷，读回一致。`uname` 仍是 `4.4.302-perf+ #35`，因为这一轮只重编了设备树，没有重链 vmlinux。`Image.gz-dtb` 12777387 字节，结束地址 `0x80c377ab`，低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-cam7.img`。上一份 `boot-cam7.img` 是 13619200 字节，`sha256 a8a4bf665e597d1486b1276a2b31e09278da0507466e7be2d0e189dcce2adf84`。内核改动（设备树、`msm_cam_sensor.h`、`msm_isp_util.c`、`msm_isp_axi_util.c`、`msm_ispif.c`、`msm_sensor.c`、`mdss_fb.c`、`mdss_dsi_panel.c` 等）还没提交。`adsprpcd` 还在。
+    - **内核**：当前 boot 是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-fp8.img`，13619200 字节，`sha256 42b9f5320b063d42bb9efb45d412eba6cfdc58855488831eb27d072c92ed15c2`。已刷，读回一致。`uname` 是 `4.4.302-perf+ #43 SMP PREEMPT Wed Oct 28 03:10:33 EDT 2026`。`Image.gz-dtb` 12778246 字节，结束地址 `0x80c37b06`，低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-cam7.img`。上一份指纹镜像 `boot-fp7.img` 是 13619200 字节，`sha256 79fa6426223e8e444a8a876467981040acbd158359d3af5bc24fcfb0f3fc0bf6`，`uname` 当时是 `#42`。内核改动（设备树、`msm_cam_sensor.h`、`msm_isp_util.c`、`msm_isp_axi_util.c`、`msm_ispif.c`、`msm_sensor.c`、`mdss_fb.c`、`mdss_dsi_panel.c`、`gf816m_keys.c` 等）还没提交。`adsprpcd` 还在。
     - **整镜像**：`/run/media/alpha/YMTC/g0215d/boot-test/system-7l.img`，1745732152 字节，`sha256 205516952e2dd68c8d42e8cd5008be2f80bd7a25eae6aed49a0ee114dc138191`，没有刷。第一次 `m systemimage` 停在 `firmware/cpp_firmware_v1_10_0.fw` 找不到：18.1 树里那份拷贝漏了它，`init.gree.rc`（daemon 的 `LD_PRELOAD libshim_mutex.so`）和 `camera/gree-camera.rc`（provider 的 override）也是旧的。三个文件补齐后重编通过。暂存目录里的 HAL、`libgu2.so`、两个 shim、JPEG 与 3A 库、`media_profiles_V1_0.xml`、两个 rc 和 CPP 固件都和手机上的 md5 一致，`build.prop` 里有两条 `ubwc=0`。
-  - **7M**：见上面的剩余顺序。7L 已经通过，下一项是指纹。原来的 7G（相机和指纹只要求进程还在）作废。
+  - **7M**：见同日第二十七轮到同日第三十五轮。校准能完成，锁屏密码能写入。查找传感器能过。抬手后的空读会重新打开采集，界面不再说传感器脏了。锁屏比对能启动。真手指还没在这一版上录完，锁屏也还没解开。原来的 7G（相机和指纹只要求进程还在）作废。
 
 ### 事件
 
@@ -615,6 +615,64 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
 
+同日第三十五轮：手动清掉已录入的指纹之后，新的录入第一次能认出传感器，然后停在 “Lift, then touch again”，后面没有进度。两侧电容键还在。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。这一版还没在真手指上录完。
+1. **现象**：查找传感器的第一下有反应，录入页标题是 “Lift, then touch again”。继续按压，进度条不动。短按仍是 Home。
+2. **原因**：04:12:23 录入页的 `gx_Register` 把状态设成 2。手指抬起时状态是 `0xa0`，读线程 `Data abort`，状态回到 1，daemon 打 `Notify type:21`。后面的按下（`0xb0`）和图像帧（`0xc0`）到来时 `g_read_flag` 是 0，帧被丢掉，没有 `enrolAddImage`。类型 21 原来会走 `send_fp_scan_on`，监听线程看到采集码非 0 就再调 `goodix_sensor_fp_enroll`，下一次按压才有图像。上一轮为了不把空读报成传感器脏了，把类型 21 和 22 直接返回，这次重新打开采集的调用也没了。比对时同样靠这个码再调 `goodix_sensor_fp_match`。
+3. **修复**：`fingerprint.default.so` 把类型 21 和 22 改回 `mov w22, #3` 再进原来的 `send_fp_scan_on`。库回到 755608 字节，`sha256 f6520c7d67e5ecc1716c09eaebe3304252fc71c45bffe7d0eff8fc2ba967ea2f`，已推到 `/vendor/lib64/hw/fingerprint.default.so`，两边设备树里那份也换了。HAL 的 `notify` 收到 `FINGERPRINT_ACQUIRED_IMAGER_DIRTY` 时只丢给界面的那一跳，监听线程返回后仍会重新采集。新的 `android.hardware.biometrics.fingerprint@2.0-service` 是 26112 字节，`sha256 8315d8337c0a263f3094c6104da72227b20698985968757f631c94c87e1e3be8`，已推到 `/vendor/bin/hw/`。没有换内核，没有刷整镜像。
+4. **实机**：重启 `vendor.fps_hal` 之后芯片是 `0x01`，`gx_fpd` 没有换 pid，也没有新的栈保护崩溃。图案锁屏还在，SP handle `[redacted]`，没有改用户的图案。设置里的指纹列表是空的，`fingerprint.txt` 也是空的。真手指还没在这一版上再录一次。
+
+同日第三十四轮：三次录入都完成了，每次都提示传感器脏了。锁屏上正确和错误的手指都没有反应，连失败提示都没有。两侧电容键还在。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。真手指还没在锁屏上解开。
+1. **现象**：设置里三次录入都走到完成。界面多次说传感器脏了，传感器是干净的。锁屏上按压没有任何提示。短按仍是 Home。
+2. **录入**：三次会话都是 `Done with client`，没有 `handleError`。框架记下 Finger 1、Finger 2、Finger 3，编号 `1681692777`、`1681692778`、`1681692779`。Goodix 的模板是 `featrue_0_0_1.dat`、`featrue_0_0_2.dat`、`featrue_0_0_3.dat`，`fingerprint.txt` 把槽位对上这三个编号。有效图像是 `enrolAddImage progress=100`，质量 60 和 75，有效比 100。所谓传感器脏了是类型 21：空读（`Data abort`，长度 0，多半是手指离开）被 `GxFpDevice::notify` 当成 `FINGERPRINT_ACQUIRED_IMAGER_DIRTY`。类型 21 和 22 不再送给框架。`fingerprint.default.so` 仍是 755608 字节，`sha256 51dc64fdc4baf55dd30a291ad8cbdf11cf1645660bfbae09c8b26fd34acee7c1`。这一轮没有再录第四枚。
+3. **锁屏没反应**：`gx_Match` 先问屏幕是否亮着。`is_screen_on` 里两个 `Parcel` 按 104 字节排布，Android 11 的 `Parcel` 是 120 字节，第二个对象压过栈保护，`gx_fpd` 在 `is_screen_on` 里 `SIGABRT`。daemon 一死，锁屏既没有成功也没有失败。栈帧从 `0x180` 加到 `0x1c0`，第二个 `Parcel` 挪到 `sp+0x120` 之后不再崩。接着交易号仍是 12。这份 Android 11 上 12 是 `wakeUp`，不是 `isInteractive`（第 16 个方法）。回复里没有整数，读出来一直是 0，芯片被切到 FF 模式 3，`fpalgo_Match_Start` 没有跑。`libfpservice.so` 里那条 `mov w1, #12` 改成 `mov w1, #16`。新库 239376 字节，`sha256 dca1195192cca524b1983fdf8e01758275cb874b973dd089f85a293b6e020950`，已推到 `/vendor/lib64/libfpservice.so`，18.1 设备树里那份也换了。
+4. **枚举**：Goodix 的 `fingerprint_enumerate` 只打日志，不写结果，调用方的个数留在 100。指纹服务把这 100 个未初始化的编号当成传感器上的模板，把 `settings_fingerprint.xml` 清成空的。磁盘上的三份模板还在。HAL 改为读 `<group>/fingerprint.txt` 的第二列。新的 `android.hardware.biometrics.fingerprint@2.0-service` 是 26096 字节，`sha256 59b82bdc6bd031e080a624323b8db22a1f2680b154734247704ae66873f98d4c`。三枚记录写回 xml 之后重启框架，枚举结果是这三个编号，`Matched: true`，没有删除模板。
+5. **实机**：屏幕是 Awake 时，日志是 `Screen state: 1`，接着 `fpalgo_Match_Start`。取消后 `fpalgo_MatchCancel success`，`Set mode:1`，芯片回到 `0x01`，`gx_fpd` 没有再崩。框架起来后 SystemUI 的比对同样是屏幕状态 1 和 `fpalgo_Match_Start`，结束时回到键模式。图案锁屏还在，SP handle `[redacted]`，没有改用户的图案。没有换内核，没有刷整镜像。真手指还没在锁屏上按过这一版。
+
+同日第三十三轮：查找传感器仍停在 “please locate your fingerprint sensor”，短按是 Home。两侧电容键还在。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。手指还没录入完成。
+1. **现象**：图案能设上。查找传感器的界面里按实了，画面不动。短按变成 Home。离开之后两侧电容键仍能用。
+2. **原因**：这一按已经走完。03:39:15 图像帧 crc 49177，质量 60，有效比 100。daemon 打 `Notify type:17, msg:10, ext:1`。HAL 打 `GxFpDevice::notify(), msgType=17`，接着 `onAcquired(0)` 和 `onEnrollResult(fid=1681692777, gid=0, rem=9)`。指纹服务记下 `Acquired: 0 0`。查找传感器的界面把第一下进度当成“找到了传感器”，马上取消这次录入，然后停在那里等 `FINGERPRINT_ERROR_CANCELED`。Goodix 的 `fingerprint_cancel` 只把芯片切回键模式，不调用 `notify(FINGERPRINT_ERROR)`。日志里没有 `onError`，也没有切到录入进度那一页。短按 Home 仍是机身上那颗实体键。取消后模式是 `0x01`，所以两侧键还在。`fid` 是 Goodix 为这枚指纹生成的编号，不是读错字段。
+3. **修复**：`BiometricsFingerprint::cancel()` 在原厂 `cancel` 返回成功、并且原厂没有已经上报错误时，自己调用 `onError(ERROR_CANCELED)`。源文件在 18.1 树的 `hardware/lineage/interfaces/biometrics/fingerprint/2.0/BiometricsFingerprint.cpp`。新的 `android.hardware.biometrics.fingerprint@2.0-service` 是 26056 字节，`sha256 9c5b4e865d5a8f928680cbefc8e83b3f2f2f49023138c65677a242f8144c70e1`，已推到 `/vendor/bin/hw/`。没有换内核，没有刷整镜像。
+4. **实机**：重启 `vendor.gx_fpd` 和 `vendor.fps_hal` 之后，没有手指的录入探针登记了回调，取消时探针收到 `error 5 0`，HAL 打 `onError(5)`。芯片回到 `0x01`。图案锁屏还在，SP handle `[redacted]`，没有改用户的图案。查找传感器之后的录入页还没在真手指上走完，锁屏没解。
+
+同日第三十二轮：查找传感器仍停在 “please locate your fingerprint sensor”，短按是 Home。两侧电容键还在。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。手指还没在这版 HAL 上录入完成。
+1. **现象**：图案能设上。查找传感器的界面里，轻触和长按都没有录入反应，短按变成 Home。离开之后两侧电容键仍能用。
+2. **原因**：图像已经读进 `gx_fpd`。轻的一按质量是 5、有效比 14，`Register failed ! ret=142`。按实的一按在 daemon 里到了 10%：`Notify type:17, msg:10, ext:1, ClientID:0`，算法版本 `TEE_68x118_v_1.07.18`。`NotifyClients` 找到了客户端，`notifyCallback` 的 binder 调用返回 0，驱动把 code 1 的单向交易放进指纹 HAL 的 `/dev/binder` 队列。HAL 的线程池只轮询 `/dev/hwbinder`，没有线程读这条队列，交易一直挂着。`GxFpDevice::notify` 没有进去，设置界面不动。短按 Home 仍是机身上那颗实体键。取消时芯片回到模式 `0x01`，所以两侧键还在。
+3. **修复**：`hardware/lineage/interfaces/biometrics/fingerprint/2.0/service.cpp` 在 `joinRpcThreadpool` 之前调用 `ProcessState::startThreadPool()`，`Android.bp` 加上 `libbinder`。新的 `android.hardware.biometrics.fingerprint@2.0-service` 已推到 `/vendor/bin/hw/`。`libfpservice.so` 仍是 `sha256 ebad61a8bc74804bd23c95b07431f39bcbe051d619c1d7a8dd59d306ef3c125f`。没有换内核，没有刷整镜像。
+4. **实机**：HAL 起来后，binder 上下文里有线程停在轮询。探针让 `gx_Register` 发出一条回调，HAL 打出 `NOTIFY_CALLBACK` 和 `fpcode, GxFpDevice::notify()`。类型 17 和 20 都在 `notify` 的分支里，17 会走到 `send_fp_scan_on`。探针取消后芯片回到 `0x01`。图案锁屏还在，SP handle `[redacted]`，没有改用户的图案。真手指还没在这版 HAL 上按过，锁屏没解。
+
+同日第三十一轮：查找传感器仍无反应，短按是 Home。两侧电容键这次还在。boot 换成 `boot-fp8.img`（内核 `#43`），已刷。图案锁屏还在。手指还没在这版内核上按过。
+1. **现象**：图案能设上。查找传感器的界面里，轻触和长按都没有录入反应，短按变成 Home。离开之后两侧电容键仍能用。
+2. **原因**：录入进入状态 2 之后，手指把状态打成 `0xc0`（就绪加图像位），`g_read_flag` 是 1。`sig_handler` 打了 `Send g_fasync_sem`，接着打 `Down event should be before data`，因为 `g_touch_flag` 是 0，信号量没有发出去。读线程一直停在等这个信号量，取消时 `length = 0`。上一轮把按键样式的中断在内核里清掉了，daemon 看不到按下，所以图像帧被拒绝。短按 Home 仍是机身上那颗实体键。取消时芯片回到模式 `0x01`，所以两侧键还在。
+3. **修复**：状态 2 且正在等图像时，图像中断把 `g_touch_flag` 写成 1 再发信号量，读线程就能取帧。`libfphal.so` 新库 `sha256 1c62075bade4b41f8dfc73f003b018440ba7edf61cfbbf0440d2abaafc86780f`，103840 字节，已推到 `/vendor/lib64/libfphal.so`，两边设备树里那份也换了。图像模式里带 HOME 位、没有图像位的状态也发 `SIGIO`，不再发 netlink，状态字节留给 daemon。BACK/MENU 仍由内核上报。没有刷整镜像。
+4. **镜像**：`Image.gz-dtb` 12778246 字节，结束地址 `0x80c37b06`。`boot-fp8.img` 13619200 字节，`sha256 42b9f5320b063d42bb9efb45d412eba6cfdc58855488831eb27d072c92ed15c2`。cmdline 和 ramdisk 沿用 `boot-cam7.img`。已刷，读回一致。内核改动还没提交。
+5. **实机**：重启后 `uname` 是 `#43`。芯片模式 `0x01`。`tiny4412-key` 的 `Classes` 是 `0x00000001`。图案锁屏还在，SP handle `[redacted]`，没有改用户的图案。没有手指的录入停在状态 2 两秒，取消后 `Set mode:1`，芯片回到 `0x01`。手指还没按到传感器上。
+
+同日第三十轮：指纹界面仍停在 “please locate your fingerprint sensor”，短按是 Home，两侧电容键又失效。boot 换成 `boot-fp7.img`（内核 `#42`），已刷。图案锁屏还在。手指还没在这版内核上按过。
+1. **现象**：和上一轮表面上一样。图案能设上。查找传感器的界面里，轻触和长按都没有录入反应，短按变成 Home。离开之后两侧电容键不再响应。`gx_fpd` 这次没有崩。
+2. **原因**：`#41` 在图像模式里把每一次中断都当成图像帧，只发 `SIGIO`。轻触先到的是按键样式的状态（就绪加 HOME 位，没有图像位 6）。`sig_handler` 把它当导航事件。录入停在状态 2、`g_read_flag` 为 1 时，这串中断把读线程的等待拆掉，状态回到 1。后面真正的图像帧（状态 `0xc0`，位 7 和位 6）到来时，`sig_handler` 看到状态不是 2，把帧丢掉，界面一直停在查找传感器。设置里的取消不调用 `postEnroll`，所以 `gx_EngTest(3)` 没有跑，芯片留在模式 `0x00`。`#41` 只在键模式上报 BACK/MENU，两侧键就没了。短按 Home 仍是机身上那颗实体键，`report_home` 是 N。
+3. **修复**：图像模式里只有状态同时带就绪位和图像位才发 `SIGIO`，状态字节留给读线程。其余状态由内核上报 BACK/MENU（`report_home` 仍是 N，HOME 位不会变成 `KEY_HOME`），写 0 清掉 `0x8140`，不发 `SIGIO`，也不发 netlink。`fingerprint.default.so` 的 `goodix_sensor_fp_cancel` 在收尾后转去 `goodix_sensor_fp_clear_enroll_env`，取消时也会 `ENG set KEY mode 1`，不再依赖设置去调 `postEnroll`。新库 `sha256 f6520c7d67e5ecc1716c09eaebe3304252fc71c45bffe7d0eff8fc2ba967ea2f`，755608 字节，已推到 `/vendor/lib64/hw/fingerprint.default.so`，两边设备树里那份也换了。没有刷整镜像。
+4. **镜像**：`Image.gz-dtb` 12777127 字节，结束地址 `0x80c376a7`。`boot-fp7.img` 13619200 字节，`sha256 79fa6426223e8e444a8a876467981040acbd158359d3af5bc24fcfb0f3fc0bf6`。cmdline 和 ramdisk 沿用 `boot-cam7.img`。已刷，读回一致。内核改动还没提交。
+5. **实机**：重启后 `uname` 是 `#42`。芯片模式 `0x01`。`tiny4412-key` 的 `Classes` 是 `0x00000001`。`gx_fpd`（pid 796）和指纹 HAL（pid 843）都在。图案锁屏还在，SP handle `[redacted]`，没有改用户的图案。没有手指的录入探针停在状态 2 两秒（`Got g_read_sem`），取消时没有调用 `postEnroll`，日志是 `Data Abort`、`Set mode:1`，芯片回到 `0x01`。手指还没按到传感器上。
+
+同日第二十九轮：指纹界面停在 “please locate your fingerprint sensor”，短按是 Home，两侧电容键又失效。boot 换成 `boot-fp6.img`（内核 `#41`），已刷。图案锁屏还在。手指还没在这版内核上按过。
+1. **现象**：图案能设上。进入查找传感器的界面后，轻触和长按都没有录入反应，短按变成 Home。离开之后两侧电容键不再响应。
+2. **原因**：短按 Home 是机身上那颗实体 Home，`report_home` 是 N，指纹芯片没有上报它。轻触被芯片记成状态 `0xb0`（就绪加 HOME 位，没有图像位 6）。录入已经把模式设成 `0x00`，`gx_Register` 进入状态 2。这个按键样式的中断同时发了 `SIGIO` 和 netlink。读线程把一帧读完了，`crc = 52978`，长度 13225。netlink 那条进了 `KeyProcessThread`，`device_action` 想从状态 2 改到状态 3，被拒绝，接着 `NotifyClients` 对空的虚表槽 `blr`，`gx_fpd` 空指针退出。daemon 重启后芯片停在图像模式 `0x00`，内核只在键模式上报 BACK/MENU，所以两侧键没了。后面几次录入的 `gx_Register` 打在已经死掉的 binder 上，新 daemon 收不到。
+3. **修复**：图像模式里 `fasync` 已经登记时，中断只发 `SIGIO`，不再发 netlink，状态字节留给读线程。键模式的按键上报和 netlink 不动。`libfpservice.so` 里 `dataCallback`、`notifyCallback`、`gx_SetPWD` 的两个 `Parcel` 按 Android 11 的 120 字节错开，栈帧从 `0x120` 加到 `0x150`，否则图像回调发出去时回复对象会压过栈保护。新库 `sha256 ebad61a8bc74804bd23c95b07431f39bcbe051d619c1d7a8dd59d306ef3c125f`，239376 字节，已推到手机，18.1 树里那份也换了。没有刷整镜像。
+4. **实机**：重启后 `uname` 是 `#41`。芯片模式 `0x01`。`tiny4412-key` 的 `Classes` 是 `0x00000001`。`gx_fpd` 和指纹 HAL 都在。这次开机没有新的 `gx_fpd` tombstone。图案锁屏还在，没有改用户的图案。
+
+同日第二十八轮：设置密码回退、设置崩溃、电容键一起失效。boot 换成 `boot-fp5.img`（内核 `#40`），已刷。密码能写入并清掉。指纹录入还在等手指。
+1. **现象**：第一次设锁屏好像成功，接着录入指纹时锁屏回到滑动，指纹界面说已经设过屏幕锁定。再试一次，设置进程崩溃，两侧电容键也不再响应。
+2. **密码和崩溃**：芯片没有参与。`dumpsys lock_settings` 里 User 0 的 `CredentialType` 一直是 None，`Quality` 是 0。`LockSettingsService` 在 `Initialize SyntheticPassword` 之后打 `Device does not support weaver`，`gatekeeperd` 打 `has no HAL to talk to`，`setLockCredential` 在 `createPasswordBasedSyntheticPassword` 里失败。界面仍进了 `RedactionInterstitial`，所以看起来像设上了。指纹介绍页接着用 `request=1` 收回 `result=1`、`data=null`，`BiometricEnrollIntroduction.onActivityResult` 对空 Intent 取 `getByteArrayExtra`，空指针把设置打崩。设备上没有 `IGatekeeper`。`keymaster@4.0-service` 是在的。
+3. **电容键**：和设置崩溃是两件事，和指纹驱动有关。`gf816m_keys` 把 `KEY_CNT` 里的每个键都放进 `keybit`，其中有 `BTN_TOUCH`。`EventHub` 看到 `BTN_TOUCH` 且没有 `ABS_X`/`ABS_Y`，把 `tiny4412-key` 标成外部手写笔（`Classes 0x00000800`），键盘类被拿掉，`tiny4412-key.kl` 用不上。`gx_fpd` 打开 `/dev/goodix_fp` 并登记 `fasync` 之后，按键中断只发给 daemon。空闲时的 `GF_Navigation` 只记 `NAV: Idle state`，不注入按键。崩溃之后的日志里 BACK、HOME、MENU 的状态字节（`0x8c`/`0x88`、`0xb0`/`0xa0`、`0x83`/`0x82`）都走了这条路径。
+4. **修复**：`device.mk` 加上 `android.hardware.gatekeeper@1.0-service.software`。二进制、rc 和 VINTF fragment 推到 `/vendor`，18.1 树的 `device.mk` 同步了。主清单没有再写一份 `IGatekeeper`。内核只广告 `KEY_HOME`、`KEY_MENU`、`KEY_BACK`。`fasync` 已登记且中断不是图像帧（状态位 6）时，键模式仍由内核 `gf_report`，`0x8140` 留给 daemon 清，非图像中断继续发 netlink。没有刷整镜像。失败那次留下的 `0000000000000000.e0` 和 `.p1` 已删，当时凭据类型是 None。
+5. **实机**：`uname` 是 `#40`。`lshal` 有 `IGatekeeper/default`。这次开机日志里没有 `has no HAL to talk to`。`locksettings set-pin 2580` 成功，`CredentialType` 变成 Pin，`SID` 非 0；马上 `locksettings clear --old 2580`，回到 None。手机上没有留下这组数字。`tiny4412-key` 的 `Classes` 是 `0x00000001`，布局是 `/vendor/usr/keylayout/tiny4412-key.kl`，`getevent -p` 只有 `0066`、`008b`、`009e`。`gx_fpd` 仍打开着 `/dev/goodix_fp`。向 `event2` 注入 `KEY_BACK` 后，按键灯亮度读到 40。手指还没按到传感器上，两侧电容垫也还没在新内核上按过。
+
+同日第二十七轮：7M 指纹录入。boot 换成 `boot-fp4.img`（内核 `#39`），已刷。校准完成了，录入停在等手指。锁屏还没解开。
+1. **现象**：`gx_fpd` 起来后校准进入状态 2 就出不来，`gx_Register` 返回 145，算法状态停在 11。芯片模式一直是 `0x01`（按键）。更早一次 `connect` 直接栈检查失败。
+2. **原因**：三处叠在一起。`libfp_client.so` 按 Android 6 给每个 `Parcel` 留了 104 字节，Android 11 的 `Parcel` 是 120 字节，回复对象压过栈保护。键模式下内核中断会清掉 `0x8140`，也没有 `SIGIO`，HAL 的 `fasync` 等不到。图像就绪是状态位 6。这个中断如果同时发给 netlink，`GF_Navigation` 马上把位 7 清掉，`get_package_data` 就丢掉这一帧。`/dev/goodix_fp` 原先也没有 `read()`，帧读取返回 -1，日志是 `len = -1`。
+3. **修复**：`fingerprint/libfp_client.so` 里 27 个 `Bp` 函数的回复槽加宽到 136 字节，`sha256 dc63ca907158b739974e4eae96e5b3c0218310015e2db14a4a8efd74587f9447`，已推到手机。内核在 `fasync` 登记之后把状态字节留给用户态，并发 `SIGIO`。位 6 的图像中断不再发 netlink，按键中断仍然发。`read()` 从 `0x8141` 读一帧，长度 13225，末尾两字节是前面负载的 16 位和。daemon 没打开设备时，按键仍由内核上报。没有刷整镜像。
+4. **实机**：重启 `gx_fpd` 后日志是 `SUCCESS: crc = 35072, len = 13225`，状态从 2 回到 1，写出 `/data/system/fingerprint/localCailibration.dat`（32184 字节），`k` 是 8192，然后回到键模式 `0x01`。HIDL `enroll` 返回 0，`Set mode:0`，`gx_Register` 返回 0，停在状态 2。12 秒后 `cancel`，回到状态 1 和键模式。没有按手指，所以没有录入完成，也没有设锁屏密码，锁屏没解。
+
 同日第二十六轮：两侧电容键的按键灯不亮。boot 换成 `boot-keys.img`，已刷。`uname` 仍是 `#35`，只重编了设备树。
 1. **现象**：按下两侧电容键，按键灯完全不亮。上一轮亮度条把 `lights.msm8996` 的 BUTTONS 做成空实现，当时写成「这台机器没有按键灯」。那个判断不对。
 2. **原因**：原厂设备树用 PM8994 的 MPP4（`0xa300`）做电流沉，名字是 `button-backlight`，20 mA，手动模式。现在的板级设备树包含了 MTP 的 `msm8996-mtp.dtsi`，那份把 MPP4 配成 HDMI 5V 的数字输出。灯的 class 节点因此不存在，灯光服务写不进去。PowerManager 的按键灯超时是 5 秒，亮度默认是 1.0，框架一直在写 BUTTONS。
@@ -693,7 +751,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`。7L 的相机设备树和 ioctl 尺寸要对上 Android 6 HAL，镜像先后是 `boot-cam2.img`、`boot-cam3.img`、`boot-cam4.img`、`boot-cam5.img`、`boot-cam6.img`、`boot-cam7.img`、`boot-keys.img`，`uname` 仍是 `#35`
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`。7L 的相机设备树和 ioctl 尺寸要对上 Android 6 HAL，镜像先后是 `boot-cam2.img`、`boot-cam3.img`、`boot-cam4.img`、`boot-cam5.img`、`boot-cam6.img`、`boot-cam7.img`、`boot-keys.img`。7M 的 GF816M 要把图像帧交给 `gx_fpd`，镜像先后是 `boot-fp4.img`、`boot-fp5.img`、`boot-fp6.img`、`boot-fp7.img`、`boot-fp8.img`，当前 `uname` 是 `#43`
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包

@@ -36,6 +36,11 @@ on post-fs-data
     mkdir /data/misc/location 0770 gps gps
     mkdir /data/misc/location/gpsone_d 0770 gps gps
     mkdir /data/misc/location/mq 0770 gps gps
+    mkdir /data/system/fingerprint 0770 system system
+    mkdir /data/system/fingerprint/calibration 0770 system system
+    mkdir /data/system/fingerprint/register 0770 system system
+    mkdir /data/system/fingerprint/match 0770 system system
+    mkdir /data/system/fingerprint/unmatch 0770 system system
 
 on boot
     # This kernel's default governor is performance, so both clusters stay at
@@ -46,6 +51,10 @@ on boot
     # Capacitive-key LED. The light HAL runs as system.
     chown system system /sys/class/leds/button-backlight/brightness
     chmod 0664 /sys/class/leds/button-backlight/brightness
+
+    # Goodix GF816M. gx_fpd and the fingerprint HAL both run as system.
+    chown system system /dev/goodix_fp
+    chmod 0660 /dev/goodix_fp
 
     # Bluetooth: the HAL powers the QCA6174 through rfkill0, then libbt-vendor
     # downloads the firmware over /dev/ttyHS0.
@@ -221,6 +230,13 @@ service atmel_tp_init /system/bin/sh /system/bin/init.atmel_ts.sh
     class main
     user root
     oneshot
+
+# Stock Goodix daemon. class main starts after /data is up and before the
+# late_start fingerprint HIDL service, which connects to this process.
+service vendor.gx_fpd /vendor/bin/gx_fpd
+    class main
+    user system
+    group system
 
 service panel_hold /system/bin/sh /system/bin/panel_hold.sh
     user root

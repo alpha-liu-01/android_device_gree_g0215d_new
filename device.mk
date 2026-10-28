@@ -66,6 +66,7 @@ PRODUCT_PACKAGES += \
     libGLESv1_CM_swiftshader \
     libGLESv2_swiftshader \
     android.hardware.keymaster@4.0-service \
+    android.hardware.gatekeeper@1.0-service.software \
     android.hardware.health@2.1-service \
     android.hardware.health@2.1-impl \
     android.hardware.audio.service \
@@ -127,7 +128,8 @@ PRODUCT_PACKAGES += \
     libgps.utils \
     libloc_core \
     libloc_eng \
-    gps.default
+    gps.default \
+    android.hardware.biometrics.fingerprint@2.0-service
 
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
@@ -205,6 +207,12 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/init.gree.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.gree.rc \
     $(LOCAL_PATH)/gps/gps.conf:$(TARGET_COPY_OUT_VENDOR)/etc/gps.conf \
     $(LOCAL_PATH)/gps/libloc_api_v02.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libloc_api_v02.so \
+    $(LOCAL_PATH)/fingerprint/gx_fpd:$(TARGET_COPY_OUT_VENDOR)/bin/gx_fpd \
+    $(LOCAL_PATH)/fingerprint/libfphal.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libfphal.so \
+    $(LOCAL_PATH)/fingerprint/libfpalgorithm.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libfpalgorithm.so \
+    $(LOCAL_PATH)/fingerprint/libfp_client.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libfp_client.so \
+    $(LOCAL_PATH)/fingerprint/libfpservice.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libfpservice.so \
+    $(LOCAL_PATH)/fingerprint/fingerprint.default.so:$(TARGET_COPY_OUT_VENDOR)/lib64/hw/fingerprint.qcom.so \
     frameworks/native/data/etc/android.hardware.audio.low_latency.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.low_latency.xml \
     frameworks/native/data/etc/android.hardware.audio.output.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.output.xml \
     frameworks/native/data/etc/android.hardware.audio.pro.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.pro.xml \

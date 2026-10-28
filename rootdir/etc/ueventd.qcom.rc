@@ -356,6 +356,9 @@ firmware_directories /vendor/firmware_mnt/image/
 /sys/class/leds/blue     breath       0640    system    system
 /sys/class/leds/button-backlight brightness 0664 system system
 
+# Goodix GF816M fingerprint
+/dev/goodix_fp    0660   system     system
+
 # NPU device
 /dev/msm_npu             0644   system     system
 
