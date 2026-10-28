@@ -615,6 +615,12 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
 
+同日第二十五轮：GPS。原先没有定位引擎。现在 `gps` provider 已登记，换到能收到天空的位置后已经定位。没有动内核，boot 仍是 `boot-cam7.img`（`#35`）。没有刷整镜像。
+1. **原先**：位置开关是开的，但 `dumpsys location` 只有 `passive` 和 `fused`，`last location` 为空。没有 `android.hardware.gnss` 进程，主清单里没有这项 HAL，`/vendor` 下也没有 `gps.default`、`libloc_api_v02.so` 和 `gps.conf`。`qmuxd` 和 `/dev/socket/qmux_gps` 本来就在。
+2. **接上的栈**：Android 11 只认 `IGnss`。用 Lineage 的 `android.hardware.gnss@1.0-service.legacy` 去加载 `gps.default`。`gps.default`、`libloc_core`、`libloc_eng`、`libgps.utils` 从 `hardware/qcom/gps/msm8996` 编。`BOARD_USES_QCOM_HARDWARE` 会跳过 `hardware/qcom/gps`，所以 `gps/Android.mk` 直接把 msm8996 的 makefile 拉进来。2017 年的 64 位 `libloc_api_v02.so` 拷到 `gps/`，经 QMI 跟调制解调器说话。`IGnss` 1.0 只加在主清单里，没有再做一个 fragment。`init.gree.rc` 补了 `/data/misc/location` 的三个目录。`gps.conf` 打开了 XTRA 和 `supl.google.com:7275`。传感器那个 `liblocationservice.so` 桩没有换掉，也没有起 `loc_launcher`。
+3. **和 2017 年库对齐的两处**：`LocApiBase` 补了非虚函数 `reportGpsMeasurementData(GpsData&)`，否则 `libloc_api_v02.so` 加载时缺符号。这份库把每颗星写成 24 字节的旧 `GpsSvInfo`（size、32 位 prn、snr、仰角、方位角），现在的 `GnssSvInfo` 是 32 字节。`reportSv` 认出 `size == 24` 后按旧布局拆开，再填成现在的结构。这两处改在 18.1 树的 `hardware/qcom/gps/msm8996/core/`，不在本仓库。
+4. **实机**：重启后 `android.hardware.gnss@1.0-service.legacy` 以 `gps` 用户起来，`lshal` 有 `IGnss/default`，进程映射里有 `libloc_api_v02.so`。`gps` provider 的能力是 `0x37`。桌边第一次请求只有星号、CN0 全是 0，40 秒没有经纬度。QMI 打过 `Shim layer present. Do not use QMUXD` 和 `rc=-6`，星号仍然从调制解调器来。`/data/misc/location/xtra/socket_hal_xtra` 不存在，XTRA 守护进程没起。手机换到房间另一侧后，F-Droid 的 GPS Cockpit（`org.woheller69.gpscockpit`）在请求定位。`dumpsys location` 的 `gps` provider 已有定位：水平精度 3 米，高度 98 米，14 颗星，最大 CN0 34、平均 23。首次定位 73 秒，随后 78 次上报，精度均值约 4.1 米，最强 4 颗的平均 CN0 约 32 dB-Hz，参与定位的是 GPS 和 GLONASS。Wi-Fi 仍连着 `Not 6GHz`，地址 `10.0.0.110`。
+
 同日第二十四轮：下拉亮度条拖动卡顿。boot 换成 `boot-cam7.img`（内核 `#35`），已刷。
 1. **现象**：亮度条拖起来一顿一顿的，松手后的亮度是对的。拖动期间 `LightsService` 反复打 `Excessive delay setting light`。每次手势开头还有一条 `Light requested not available on this device. 2`。
 2. **原因**：这块屏的背光是 DCS 命令。`CMD_REQ_DCS` 让每次写入都拿着 DSI 的 `cmd_mutex` 去等下一次 TE，双口再等一次。30 次 sysfs 写入用了 1041 ms。帧提交排在这把锁后面，拖动时 SystemUI 帧时间中位数 61 ms、90 分位 97 ms，93% 的帧算 jank。类型 2 是 BUTTONS。这台机器没有按键灯，`lights.msm8996` 没实现，PowerManager 每次用户活动都会写一次。

@@ -121,7 +121,13 @@ PRODUCT_PACKAGES += \
     libwpa_client \
     hostapd \
     wpa_supplicant \
-    wpa_supplicant.conf
+    wpa_supplicant.conf \
+    android.hardware.gnss@1.0-impl.legacy \
+    android.hardware.gnss@1.0-service.legacy \
+    libgps.utils \
+    libloc_core \
+    libloc_eng \
+    gps.default
 
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
@@ -197,6 +203,8 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/init.atmel_ts.sh:$(TARGET_COPY_OUT_SYSTEM)/bin/init.atmel_ts.sh \
     $(LOCAL_PATH)/panel_hold.sh:$(TARGET_COPY_OUT_SYSTEM)/bin/panel_hold.sh \
     $(LOCAL_PATH)/init.gree.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.gree.rc \
+    $(LOCAL_PATH)/gps/gps.conf:$(TARGET_COPY_OUT_VENDOR)/etc/gps.conf \
+    $(LOCAL_PATH)/gps/libloc_api_v02.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libloc_api_v02.so \
     frameworks/native/data/etc/android.hardware.audio.low_latency.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.low_latency.xml \
     frameworks/native/data/etc/android.hardware.audio.output.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.output.xml \
     frameworks/native/data/etc/android.hardware.audio.pro.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.pro.xml \

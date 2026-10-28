@@ -62,6 +62,11 @@ MAX_VIRTUAL_DISPLAY_DIMENSION := 4096
 TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS := true
 TARGET_PROVIDES_LIBLIGHT := true
 
+# GPS. hardware/qcom/gps/msm8996 builds gps.default, libloc_core and
+# libgps.utils. The 2016 libloc_api_v02.so talks to the modem over QMI.
+BOARD_VENDOR_QCOM_GPS_LOC_API_HARDWARE := default
+BOARD_VENDOR_QCOM_LOC_PDK_FEATURE_SET := true
+
 # Audio. CAF msm8996 HAL; it reads kernel uapi headers from
 # $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr (see docs, step 7C).
 BOARD_USES_ALSA_AUDIO := true
