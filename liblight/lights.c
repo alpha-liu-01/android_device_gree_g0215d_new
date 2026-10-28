@@ -23,6 +23,8 @@ static const char* const FB_BLANK_FILE = "/sys/class/graphics/fb0/blank";
 static const char* const RED_LED_FILE = "/sys/class/leds/red/brightness";
 static const char* const GREEN_LED_FILE = "/sys/class/leds/green/brightness";
 static const char* const BLUE_LED_FILE = "/sys/class/leds/blue/brightness";
+static const char* const BUTTON_FILE =
+    "/sys/class/leds/button-backlight/brightness";
 
 static int write_int(const char* path, int value) {
     int fd = open(path, O_RDWR);
@@ -89,13 +91,15 @@ static int set_light_leds(struct light_device_t* dev,
 
 static int set_light_buttons(struct light_device_t* dev,
                              const struct light_state_t* state) {
-    (void)state;
     if (!dev) {
         return -1;
     }
-    /* Capacitive keys have no LED. PowerManager still writes this light
-     * on user activity, and a missing id logs an error on every gesture. */
-    return 0;
+    /* PM8994 MPP4. A sysfs write, not the panel DCS path. */
+    int brightness = rgb_to_brightness(state);
+    pthread_mutex_lock(&g_lock);
+    int err = write_int(BUTTON_FILE, brightness);
+    pthread_mutex_unlock(&g_lock);
+    return err;
 }
 
 static int close_lights(struct light_device_t* dev) {

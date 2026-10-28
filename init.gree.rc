@@ -43,6 +43,10 @@ on boot
     write /sys/devices/system/cpu/cpufreq/policy0/scaling_governor interactive
     write /sys/devices/system/cpu/cpufreq/policy2/scaling_governor interactive
 
+    # Capacitive-key LED. The light HAL runs as system.
+    chown system system /sys/class/leds/button-backlight/brightness
+    chmod 0664 /sys/class/leds/button-backlight/brightness
+
     # Bluetooth: the HAL powers the QCA6174 through rfkill0, then libbt-vendor
     # downloads the firmware over /dev/ttyHS0.
     chown bluetooth net_bt /sys/class/rfkill/rfkill0/type
