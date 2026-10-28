@@ -15,3 +15,7 @@ PRODUCT_DEVICE := g0215d
 PRODUCT_BRAND := Gree
 PRODUCT_MODEL := G0215D
 PRODUCT_MANUFACTURER := Gree
+
+# TARGET_NO_KERNEL skips the recovery image unless the product asks for it.
+# The prebuilt 4.4 kernel is copied by recovery/Android.mk.
+PRODUCT_BUILD_RECOVERY_IMAGE := true

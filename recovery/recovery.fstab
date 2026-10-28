@@ -1,7 +1,11 @@
-# Non-A/B, no vendor.img.
+# Non-A/B, no vendor.img. TWRP 3.7 remounts /system at /system_root and
+# reads build.prop from system/build.prop there (system-as-root).
+# /data uses the file-based policy the next step will enable. Unencrypted
+# ext4 still mounts; there is no crypto footer.
 
 /dev/block/bootdevice/by-name/system       /system         ext4    ro,barrier=1                                                    wait
 /dev/block/bootdevice/by-name/cache        /cache          ext4    noatime,nosuid,nodev,barrier=1                                  wait
-/dev/block/bootdevice/by-name/userdata     /data           ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc                   wait,encryptable=footer
+/dev/block/bootdevice/by-name/userdata     /data           ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc                   wait,fileencryption=aes-256-xts:aes-256-cts:v1
 /dev/block/bootdevice/by-name/boot         /boot           emmc    defaults                                                        defaults
 /dev/block/bootdevice/by-name/recovery     /recovery       emmc    defaults                                                        defaults
+/dev/block/bootdevice/by-name/misc         /misc           emmc    defaults                                                        defaults

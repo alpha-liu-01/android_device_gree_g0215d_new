@@ -127,8 +127,60 @@ WIFI_DRIVER_FW_PATH_PARAM := "/sys/module/wlan/parameters/fwpath"
 WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY := true
 WPA_SUPPLICANT_VERSION := VER_0_8_X
 
-# Recovery fstab for a later image. The partition in use stays the 2016 TWRP.
+# TWRP 3.7.0_11, built from TeamWin's android-11 branch in the 18.1 tree.
+# The kernel is the one already running in boot-fp8; this tree does not rebuild it.
+# Decryption target for the next step is file-based ext4 crypto, policy v1
+# (legacy session keyring). The 4.4 kernel has EXT4_ENCRYPTION and does not
+# implement FS_IOC_ADD_ENCRYPTION_KEY, metadata encryption, or the old ICE
+# full-disk mapping. Footer encryption stays out of this fstab.
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery/recovery.fstab
+TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
+TARGET_PREBUILT_RECOVERY_KERNEL := $(DEVICE_PATH)/prebuilt/Image.gz-dtb
+RECOVERY_SDCARD_ON_DATA := true
+TW_DEVICE_VERSION := g0215d
+TW_THEME := portrait_hdpi
+# The panel is mounted 180 degrees. SurfaceFlinger rotates Android; TWRP rotates
+# its own framebuffer the same way. Touch is already in that upright space, so
+# flipping X or Y turns the pointer upside down.
+TW_ROTATION := 180
+TW_BRIGHTNESS_PATH := "/sys/class/leds/lcd-backlight/brightness"
+TW_MAX_BRIGHTNESS := 255
+TW_DEFAULT_BRIGHTNESS := 180
+TW_NO_SCREEN_BLANK := true
+# Dim-to-5 then brightness 0 is the phase-2 failure: the picture goes away and
+# a dropped touch never brings it back.
+TW_NO_SCREEN_TIMEOUT := true
+# A zero touch-major is not a finger-up on this controller.
+TW_IGNORE_MAJOR_AXIS_0 := true
+TW_INCLUDE_CRYPTO := true
+TW_USE_FSCRYPT_POLICY := 1
+TW_EXCLUDE_APEX := true
+TW_EXCLUDE_MTP := true
+TW_EXCLUDE_NANO := true
+TW_EXCLUDE_TWRPAPP := true
+
+# Soong reads these through VendorConfig("makeVarsPlugin"). BoardConfig
+# variables are not visible to the theme and graphics defaults otherwise.
+SOONG_CONFIG_NAMESPACES += makeVarsPlugin
+SOONG_CONFIG_makeVarsPlugin += \
+    TW_THEME \
+    TW_ROTATION \
+    TARGET_RECOVERY_PIXEL_FORMAT \
+    TW_USE_FSCRYPT_POLICY \
+    TW_INCLUDE_CRYPTO \
+    TW_NO_SCREEN_BLANK \
+    TW_NO_SCREEN_TIMEOUT \
+    TW_IGNORE_MAJOR_AXIS_0 \
+    TW_EXCLUDE_NANO
+SOONG_CONFIG_makeVarsPlugin_TW_THEME := portrait_hdpi
+SOONG_CONFIG_makeVarsPlugin_TW_ROTATION := 180
+SOONG_CONFIG_makeVarsPlugin_TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888
+SOONG_CONFIG_makeVarsPlugin_TW_USE_FSCRYPT_POLICY := 1
+SOONG_CONFIG_makeVarsPlugin_TW_INCLUDE_CRYPTO := true
+SOONG_CONFIG_makeVarsPlugin_TW_NO_SCREEN_BLANK := true
+SOONG_CONFIG_makeVarsPlugin_TW_NO_SCREEN_TIMEOUT := true
+SOONG_CONFIG_makeVarsPlugin_TW_IGNORE_MAJOR_AXIS_0 := true
+SOONG_CONFIG_makeVarsPlugin_TW_EXCLUDE_NANO := true
 
 # SELinux
 include device/qcom/sepolicy-legacy-um/SEPolicy.mk

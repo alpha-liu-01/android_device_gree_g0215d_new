@@ -1,0 +1,15 @@
+# This kernel has configfs USB only. TWRP's early-init sets sys.usb.configfs
+# to 0; set it back before the fs trigger so adbd binds to the dwc3 UDC.
+
+on init
+    setprop sys.usb.configfs 1
+    setprop sys.usb.controller 6a00000.dwc3
+    # ueventd creates by-name under the ufshc platform device. The fstab
+    # uses the bootdevice alias that the normal boot ueventd would add.
+    symlink /dev/block/platform/soc/624000.ufshc /dev/block/bootdevice
+
+on boot
+    write /sys/class/graphics/fb0/blank 0
+    write /sys/class/leds/lcd-backlight/brightness 180
+    # The boot+system zip calls /sbin/simg2img. This ramdisk ships it in /system/bin.
+    symlink /system/bin/simg2img /sbin/simg2img
