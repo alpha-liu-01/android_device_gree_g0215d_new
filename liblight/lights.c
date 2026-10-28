@@ -87,6 +87,17 @@ static int set_light_leds(struct light_device_t* dev,
     return 0;
 }
 
+static int set_light_buttons(struct light_device_t* dev,
+                             const struct light_state_t* state) {
+    (void)state;
+    if (!dev) {
+        return -1;
+    }
+    /* Capacitive keys have no LED. PowerManager still writes this light
+     * on user activity, and a missing id logs an error on every gesture. */
+    return 0;
+}
+
 static int close_lights(struct light_device_t* dev) {
     if (dev) {
         free(dev);
@@ -105,6 +116,8 @@ static int open_lights(const struct hw_module_t* module, const char* name,
                0 == strcmp(LIGHT_ID_NOTIFICATIONS, name) ||
                0 == strcmp(LIGHT_ID_ATTENTION, name)) {
         set_light = set_light_leds;
+    } else if (0 == strcmp(LIGHT_ID_BUTTONS, name)) {
+        set_light = set_light_buttons;
     } else {
         return -EINVAL;
     }
