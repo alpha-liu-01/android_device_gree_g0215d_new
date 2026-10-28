@@ -317,8 +317,8 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 
 1. **指纹改成强生物识别**。已做，见同日第三十七轮。`config_biometric_sensors` 写成 `0:2:15`，框架按强生物识别登记，成功比对会调用 `addAuthToken`。令牌是 69 字节、版本 0、类型是指纹、HMAC 全 0；这套软件 KeyStore 只拒版本或长度不对的令牌，不校验 HMAC。整机重启后第一次解锁仍要图案，这是 Android 的开机强认证，跟指纹强弱无关。
 2. **VoLTE**。短信和第二张卡已经能用。IMS 仍未注册。当前这张联通卡在 Bell 上的调通已经停下。第四十五轮第 1 项已经做完，见同日第四十六轮：自动选择不是关的，插上移动卡会按卡重选，但不保证落到 `volte_op` 或 `volte_su`。第 2 项已经做完，见同日第四十七轮：`IImsRadio` 在重启后仍由 `lshal` 看到，没有写进 manifest，注册状态按 IMSA 报，现在是未注册。第 3 项已经做完，见同日第四十八轮：移动卡走默认运营商配置时，增强型 4G 不会被关掉。没有换格力的 `libril-qc-qmi-1.so`，没有拨出电话。通话后回 LTE 仍只在电话落到 3G 时才重要，跟在这一项后面看。
-3. **通话能听清**。现在的语音 path 把 vocproc 拓扑关掉了，所以没有回声消除和降噪。听筒和免提有声音，耳机通话和蓝牙 SCO 只改了 mixer，没有测。ADSP 拒绝 `0x10F89` / `0x10F8A` 的原因还没查清。电话要能当电话用，这一项在 VoLTE 之后、安装包之前。
-4. **用户能自己刷的 ROM 包**。现在系统是 adb 推上去的，没有一份 recovery 能刷的 zip。先在当前这块未加密的 data 上做出来，用 2016 年那份已经能挂上 data 的 TWRP 验证刷写。这样后面改 recovery 或加密失败，还有退路。包里要有 boot 和 system，不写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。
+3. **通话能听清**。听筒和免提两个方向已经有声音，靠的是把 vocproc 拓扑改成 `NONE`。回声消除和降噪因此没有。有线耳机和蓝牙 SCO 通话也有声音，见同日第五十六轮。有线耳机通话音量键改的是 `STREAM_VOICE_CALL`。第五十六轮写了 `RX5`/`RX6` 主路音量，听感没变；第五十七轮改写 `RX1`/`RX2` 的 mix 音量，这才是 `INT1_2`/`INT2_2` 的寄存器。可能的尝试和顺序见同日第四十九轮。第 1 项已经听过，见同日第五十轮：房间不吵；回声出现在对方的 iPhone 上，格力贴耳时自己这边不放出回声。第 2 项已经对过号，见同日第五十一轮：固件里有 `0x10F89` / `0x10F8A`，ACDB 给听筒和免提的都是这一对。第 3 项不再重做，见同日第五十二轮：7F 补记里已经有这次提交的 `ADSP_EFAILED`。第 4 项条件不成立，见同日第五十三轮，没有改听筒拓扑。第 5 项没有缺的注册，见同日第五十四轮，没有改音频 HAL，也没有再打一通。第五十五轮起不再改拓扑：听筒和免提保持 `NONE`，回声还在。这一项在安装包之前。
+4. **用户能自己刷的 ROM 包**。已做，见同日第五十八轮。包在 `g0215d/boot-test/lineage-18.1-20261028-UNOFFICIAL-g0215d.zip`，只含 boot 和 system。2016 年的 TWRP 3.0.2 在这块未加密的 data 上刷过，分区哈希和刷之前一致，data 没有格式化。日常 recovery 现在就是这份 2016 镜像。
 5. **能解密的新 TWRP**。3.0.2 是 2016 年的，对不上 Android 11 的 system-as-root，也解不开文件加密。建议用仍能编进这颗 4.4 内核的 3.7 这一代，不要停在 3.0.2；小版本等开工时按能编过的最新 3.7 定。`#17` 那份 4.4 内核解不开当年用 3.18 ICE 加密的盘。新 recovery 要能解密下一项真正采用的方案，并且能刷第 4 项的包。TWRP 里的振动顺手做，不单列。
 6. **手机加密**。放在新 TWRP 能解开之后再开。fstab 现在是 `encryptable=footer`（全盘加密）。4.4 内核对旧的 ICE 映射呈不出 ext4，所以不能沿用当年那套硬件加密就把加密打开，否则 recovery 进不去 data。方案要和上一项目一起定。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
 7. **红外**。原厂有 `com.gree.irremote`，路线图里的内核开关是 `CONFIG_RAON_REMOTE_CTRL_SOC`。板级线索比 FM 和 NFC 清楚，先做。
@@ -626,6 +626,76 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第五十八轮：可刷写的 boot 和 system 包。用 2016-10-07 的 TWRP 3.0.2 刷过，data 没有格式化。没有写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。没有打电话，没有重编内核。
+
+1. **包**。`/run/media/alpha/YMTC/g0215d/boot-test/lineage-18.1-20261028-UNOFFICIAL-g0215d.zip`，2405057680 字节，`sha256 1f38baa988c90f23b001743fc239af1c1230ba258d7836e7f878ee23c3c10fc5`。`boot.img` 就是当前的 `boot-fp8.img`，13619200 字节，`sha256 42b9f5320b063d42bb9efb45d412eba6cfdc58855488831eb27d072c92ed15c2`。`system.img` 是稀疏的。原始内容是当时正在跑的 system 分区，卸下后整分区 3221225472 字节，`sha256 de6a43443d6596f0cf66ee7edf2bbb51ebb02afa267df1ff7a2ae708ecc18cba`。零块写成 FILL，刷到一份不一样的旧分区上也不会把空块留成旧数据。`update-binary` 是 `/sbin/sh`，只对 boot 做 `dd`，对 system 做 `simg2img`。
+2. **recovery**。刷包之前手机上的 recovery 是 `#17` 的 `recovery-phase2.img`。这一项要用 2016 年那份能挂上 data 的 TWRP，所以先把 `device-backup/recovery.img` 写入 recovery 分区，`sha256 4c14c80cfc6a8b77f354cd5d939d9bc94a3d2f3df02f0a39eeb107907c6f76ac`。进去之后 `uname` 是 `3.18.20-perf`，TWRP `3.0.2-0`，`/data` 直接挂上，54 GB 里用了 1.2 GB。刷完留在这块分区上，和前面说的日常 recovery 一致。`#17` 那份镜像还在硬盘上。
+3. **刷写**。`twrp install` 成功。刷完后 boot 前 13619200 字节、system 全分区的 sha256 都和上面的原始镜像一致。脚本删了临时目录。重启进桌面后 `ro.build.display.id` 仍是 `lineage_g0215d-userdebug 11 RQ3A.211001.001 eng.alpha.20261027.011022 test-keys`，`/data/system/locksettings.db` 还在，耳机音量那份 HAL 里有 `RX1/RX2 Mix Digital Volume`。
+4. **进 recovery**。原先 `adb reboot recovery` 不重启。init 在 fstab 里找不到 `/misc`，写不了 BCB 就停住。`fstab.qcom` 加了 `/dev/block/by-name/misc` 挂到 `/misc`。这行在刷上去的 system 里。桌面起来之后 `adb reboot recovery` 能进这份 TWRP，data 仍挂着，再开机回到桌面。本仓库和 18.1 树的 `rootdir/etc/fstab.qcom` 都加了这一行。没有重编 boot。
+
+同日第五十七轮：有线耳机通话音量，第五十六轮写错了寄存器。没有改 mixer，没有拿掉 `no-topology`，没有重编内核，没有打电话。
+
+1. **上一轮的写入发生了，听感没变**。13:28 这通有线耳机通话里，音量从 1 调到 5 时，`platform_write_headset_rx_gain` 把 `RX5`/`RX6 Digital Volume` 从 60 写到 84。耳机仍有声音，大小不变。
+2. **通路**。`headphones` 把 `SLIM RX5`/`RX6` 送进 `RX INT1_2` / `RX INT2_2`。这两个 mux 挂在 `RX1`/`RX2` 的 mix path 上，有效音量是 `RX1 Mix Digital Volume` 和 `RX2 Mix Digital Volume`。`RX5`/`RX6 Digital Volume` 是主路，这路通话不经过。
+3. **改动**。同一组语音档改去写这两个 mix 音量，离开耳机时写回 84。32 位 HAL 重新推过。下一通有线耳机通话再听音量键。
+
+同日第五十六轮：有线耳机通话音量。没有改 mixer，没有拿掉 `no-topology`，没有重编内核，没有打电话。听筒和免提仍走 `NONE`。
+
+1. **有声音**。有线耳机和蓝牙耳机通话都有声音。拓扑保持 `NONE`，回声那一项没有重开。
+2. **音量键确实在改语音流**。13:04:56 插入有线耳机。13:05:22 通话路由是 `WIRED_HEADSET`，13:05:44 才切到免提。这中间 `STREAM_VOICE_CALL` 从 4 调到 1，中间经过 2 和 3。这一分钟的 `audio_hw` 行已经被日志冲掉，看不到 `Voice Rx Gain` 那一行。耳机上的 `HPHL`/`HPHR Volume` 仍是 20，`RX5`/`RX6 Digital Volume` 仍是 84（0 dB）。语音音量只写 `Voice Rx Gain`，那是 DSP 的音量档，不改耳机这路的数字增益。蓝牙通话音量走的是另一路 `STREAM_BLUETOOTH_SCO`，13:08 那次从 7 调到 13，和有线耳机不是同一个控制。
+3. **改动**。有线耳机语音走 `SLIM RX5`/`RX6`。输出设备是 `voice-headphones`、`voice-line` 或 ANC 耳机时，按语音音量把 `RX5`/`RX6 Digital Volume` 从 84 往下减，每一档 6 dB，最低一档是 54（-30 dB）。离开这条设备时写回 84，耳机音乐播放仍用原来的 0 dB 再加软件音量。`audio.primary.msm8996.so`（32 位）已推到手机，`android.hardware.audio.service` 已加载这份库。下一通有线耳机通话可以听音量键是否跟着变。
+
+同日第五十五轮：通话听清到此停下。没有改 mixer，没有改 ACDB，没有重编内核，没有打电话。听筒和免提仍走 `NONE`。
+
+1. **现在的结果**。两个方向有声音。回声在对方那一头，房间不吵。回声消除和降噪在拓扑里，`NONE` 把它们一起拿掉了。
+2. **已经排除的**。`0x10F89` / `0x10F8A` 在 `adsp.b08` 的登记表里，和 `0x10F71`、`0x10F77` 同一类记录，不是缺号。听筒 ACDB 仍返回这一对。10 月 27 日 14:53:51 的听筒通话里，校准已经写入内核，CVP 创建成功，通道数成功，提交 `0x13198` 返回 `ADSP_EFAILED`。注册命令排在提交之后，和小米、一加的 3.18 相同。
+3. **不再试**。把听筒改成 `0x10F71` / `0x10F77` 要再打一通，失败就是无声；固件里这两对的登记形式一样，创建会话已经接受 `0x10F89` / `0x10F8A`，没有理由认为换号就能通过提交。把注册挪到提交之前，和 3.18 的顺序相反，模块是提交时才建出来的。不换 ADSP 固件，不换音频 HAL。第 6 项因此不开始。耳机和蓝牙 SCO 还没在 `NONE` 下听过，那是有没有声音，不是这次的拓扑。
+
+同日第五十四轮：通话听清，做第四十九轮的第 5 项。没有改 mixer，没有改音频 HAL，没有重编内核，没有打电话。听筒拓扑仍是 `NONE`。
+
+1. **`reload` 不是这次提交的路径**。`acdb_loader_reload_acdb_files` 只在参数 `reload_acdb` 时调用，垫片固定返回 -1。`acdb_loader_reload_acdb_files_v2` 格力这份库里没有，开机时 `dlsym` 会记一笔。听筒通话走的是 `acdb_loader_send_voice_cal`。
+2. **失败那通听筒已经把校准送进去了**。10 月 27 日 14:53:51，路由是听筒。`send_voice_cal` 是 `acdb_rx = 7`、`acdb_tx = 4`、`feature_set = 0`，接着有 `AUDIO_SET_VOCPROC_CAL`、`AUDIO_SET_VOCPROC_DEV_CFG_CAL`、`AUDIO_SET_VOCPROC_VOL_CAL`，内核打了 `voice_set_cal`。然后 CVP 创建成功，通道数 `0x13199` 成功，拓扑提交 `0x13198` 返回 `ADSP_EFAILED`。这四条注册命令在 `voice_setup_vocproc` 里排在提交之后，这次没有执行到。
+3. **和 3.18 的命令一样**。格力没有 3.18 内核源码。小米和一加的 3.18 `q6voice.c` 用同一组命令：`VSS_ISTREAM_CMD_REGISTER_CALIBRATION_DATA_V2`、`VSS_IVOCPROC_CMD_REGISTER_DEVICE_CONFIG`、`VSS_IVOCPROC_CMD_REGISTER_CALIBRATION_DATA_V2`、`VSS_IVOCPROC_CMD_REGISTER_VOL_CALIBRATION_DATA`，也都在拓扑提交之后。听筒没有缺一条可以补上的注册。
+
+同日第五十三轮：通话听清，做第四十九轮的第 4 项。没有改 mixer，没有重编内核，没有打电话。听筒拓扑仍是 `NONE`。
+
+1. **条件**。这一步只在固件有 `0x10F71` 和 `0x10F77`、同时没有被拒的 `0x10F89` / `0x10F8A` 时，才把听筒改成内核那一对再打一通。第五十一轮已经对过 `adsp.b08`：TX 表里 `0x10F71` 和 `0x10F89` 都在，RX 表里 `0x10F77` 和 `0x10F8A` 都在。两对同时在，条件不成立。
+2. **没有改听筒**。ACDB 现在给听筒的仍是 `0x10F89` / `0x10F8A`，7F 里这对提交已经是 `ADSP_EFAILED`。换成 `0x10F71` / `0x10F77` 不是这一步要验证的事，听筒继续走 `NONE`。
+
+同日第五十二轮：通话听清，看第四十九轮的第 3 项还要不要做。没有打电话，没有拿掉 `no-topology`。
+
+1. **7F 补记里已经有这次拒绝**。开对 `voicemmode1` 会话之后，通道数 `0x13199` 成功，拓扑提交 `0x13198` 被 ADSP 返回 `ADSP_EFAILED`（错误码 1）。内核接着打 `voice_setup_vocproc: Set topology commit failed err:-131` 和 `setup voice failed`。电话接通，听筒没有声音。当时 `voice_get_topology` 打出的就是 TX `69513`（`0x10F89`）、RX `69514`（`0x10F8A`）。绕过是在这次失败之后才加的。
+2. **现在重打不会多出一个字符串**。`voice_send_cvp_topology_commit_cmd` 只把 ADSP 的错误码换成 `adsp_err` 里的字符串。错误码 1 的字符串就是 `ADSP_EFAILED`，对应的 Linux 错误是 `-131`。第五十一轮确认听筒现在仍返回这一对，ACDB 文件和这次提交的代码都没改。免提返回的也是这一对，所以当时即使不在听筒上，字符串也一样。
+3. **不重做**。再拿掉听筒的 `no-topology` 打一通，只会再无声一次，记下来的还是这两句。`no-topology` 保持原样。
+
+同日第五十一轮：通话听清，做第四十九轮的第 2 项，只读对拓扑号。没有打电话，没有改 mixer、ACDB 或内核。
+
+1. **固件**。号在 `/firmware/image/adsp.b08` 里，其余 `adsp.b00` 到 `adsp.b06`、`adsp.b09` 和 `adsp.mdt` 没有这几个号。TX 登记表里，`0x10F70`、`0x10F71`、`0x10F89` 的第二项都是 1，`0x10F72` 的第二项是 2。RX 登记表里有 `0x10F77` 和 `0x10F8A`。`0x10F89` 和 `0x10F8A` 都在表里，提交失败不是因为固件没有这个号，这一步之后不用先重编内核。
+2. **ACDB 现在返回的一对**。手机上的 `MTP_Handset_cal.acdb`、`MTP_Speaker_cal.acdb` 和树里这两份相同。属性 `0x113AF` 指到拓扑号。听筒：TX 设备 4（`handset-mic`）是 `0x10F89`，RX 设备 7（`voice-handset`）是 `0x10F8A`。免提：TX 设备 11（`voice-speaker-mic`）是 `0x10F89`，RX 设备 14（`voice-speaker`）是 `0x10F8A`。两对相同，和 7F 里听筒那次读到的号一致。
+3. **内核里那三个号**。`0x10F71`、`0x10F72`、`0x10F77` 都在固件登记表里。听筒和免提的 ACDB 都没有把它们当成这对设备的拓扑。`0x10F71` 和 `0x10F77` 在这两份 ACDB 里一次都没出现。第 4 步要的是「有 `0x10F71` / `0x10F77`、没有 `0x10F89` / `0x10F8A`」，这个条件不成立。
+
+同日第五十轮：通话听清，做第四十九轮的第 1 项。没有改 mixer，没有重编内核。拓扑仍是 `NONE`。
+
+1. **听到的现象**。房间本身不吵，听筒和免提两边都不觉得吵。回声出在另一台手机上：iPhone 贴着耳朵、格力放在嘴边并且靠得很近时，iPhone 里能听到回声。反过来，格力贴着耳朵、iPhone 放在嘴边时，格力这边不放出回声。
+2. **和日志对得上**。这通是 12:15:10 接通、12:16:00 拆线，`call_type=UMTS`，会话 `voicemmode1-call`，vsid `297816064`。12:15:36 到 12:15:49 是免提，其余是听筒。12:15:49 切回听筒时走 `voice-handset` 加 `handset-mic`，ACDB 的 `send_voice_cal` 是 `acdb_rx = 7`、`acdb_tx = 4`、`feature_set = 0`。`voicemmode1-call` 带了 `voicemmode1-no-topology`，启用时没有再报会话号错误；`voc_disable_topology: invalid session_id 0x0` 出现在切免提、切回听筒和挂断时的路径复位上。`feature_set = 0` 加上 `NONE` 拓扑，上行没有回声消除。对方听到的是格力麦克风又把听筒或免提里的声音送回去。iPhone 自己有回声消除，所以格力贴耳时听不到这份回声。
+3. **听筒侧音**。切回听筒时 `voice_set_sidetone: enable`，path 是 `sidetone-handset`。这是把自己的声音混进听筒，不是送到对方的那份回声。
+
+同日第四十九轮：通话听清，只列尝试。没有改 mixer，没有重编内核，没有拨出电话。联通卡已拔出。现在这张是 Fizz，`gsm.sim.operator.numeric` 是 `302500`，注册名是 `Fizz EXT`，网络类型 `HSPA`，SIM 是 `LOADED,ABSENT`。`Voice Topology Disable` 仍是第 6 号控制（`numid` 7，不是 6）。`mixer_paths_tasha.xml` 里的 `voicemmode1-no-topology` 还在。
+
+7F 补记里听筒和免提已经两个方向有声。有声是因为 vocproc 用了 `VSS_IVOCPROC_TOPOLOGY_ID_NONE`（`0x10F70`），回声消除和降噪都在拓扑里，所以一起没了。ACDB 当时给出的是 TX `0x10F89`、RX `0x10F8A`。通道数命令 `0x13199` 成功，拓扑提交 `0x13198` 被 ADSP 回 `ADSP_EFAILED`，会话建不起来，电话却接通，表现是通了没有声音。CVD 是 `2.2`，内核因此会发这条提交。原厂 3.18 的提交和通道数代码一样。内核里另外写明的拓扑是 TX `0x10F71`（SM_ECNS）、`0x10F72`（DM_FLUENCE），RX `0x10F77`。免提扬声器是 `QUAT_MI2S` 上的 TFA9890，和听筒不是一条通路。
+
+下面按这个顺序。每一次只动听筒，失败就把 `no-topology` 放回去再试下一条。不要先动耳机和蓝牙。不要写 `numid` 6，那是 `Slowtalk Enable`。家网 `Fizz` 的 LTE 不能 CSFB；测试时如果已经不在 HSPA，先把首选网络临时改成 3G，测完改回。
+
+1. **先听现在的通话**。已做，见同日第五十轮。拓扑保持 `NONE`。听筒说一段、免提说一段，记下哪一头回声、哪一头吵、哪一头其实已经够用。可行性高。风险低：不改路径，就是一通 3G。没有这一步，后面分不清是拓扑没回来，还是听筒和免提本来就不是同一个问题。
+2. **只读对拓扑号**。已做，见同日第五十一轮。在 ADSP 固件里找 `0x10F89`、`0x10F8A`，以及 `0x10F71`、`0x10F72`、`0x10F77`。再看 ACDB 现在给听筒和免提各返回哪一对。不打电话，不改文件。可行性高。风险低。若固件里没有 `0x10F89` / `0x10F8A`，提交失败就是号不对，不用先重编内核。结果是这五个号固件里都有，听筒和免提返回的仍是 `0x10F89` / `0x10F8A`。
+3. **听筒上抓一次真正的拒绝**。已做，见同日第五十二轮，依据是 7F 补记，没有再打一通。只在这一通里拿掉听筒的 `no-topology`，让 ACDB 的号走到提交，把 ADSP 的错误字符串记下来，挂断后立刻把 `no-topology` 放回。可行性高。风险：这一通听筒没有声音。免提、耳机不要一起拿掉。错误字符串已经是 `ADSP_EFAILED`，`err:-131`。
+4. **若固件里有 `0x10F71` 和 `0x10F77`，而没有那对被拒的号**。已结束，见同日第五十三轮。第五十一轮里固件同时有这两对，条件不成立，没有把听筒改成 `0x10F71` / `0x10F77`，也没有为这一步打电话。只对听筒改用这一对，打一通。提交通过而且两个方向仍有声，再听回声。不通过就放回 `NONE`。可行性中等：号在固件里不等于校准也在。风险：这一通无声，或有声但比现在更差。
+5. **号在固件里，提交仍失败**。已做，见同日第五十四轮。再看校准。垫片的 `acdb_loader_reload_acdb_files` 现在返回 -1，提交可以因为校准没注册而失败。对照原厂 3.18 的注册校准命令，只补听筒这一条所缺的注册，再打一通。可行性中等。风险同上，并且不要换成另一套音频 HAL。听筒这条的静态、设备配置和音量校准在提交之前已经送到内核；四条注册命令和 3.18 相同，并且排在提交之后。没有补注册，没有打电话。
+6. **听筒的非 `NONE` 拓扑已经又有声之后，再做免提**。见同日第五十五轮，听筒没有得到这样的拓扑，这一步不开始。免提是 TFA9890，ACDB 可能给另一对号。听筒的改动不要套到免提上再一起测。可行性中等。风险：免提再次无声，听筒应仍走已经验证的那条。
+7. **耳机，然后蓝牙 SCO**。见同日第五十五轮，不和拓扑修在一起做。这两条从来没听过。先在 `NONE` 下确认有没有声音，再套用听筒上已经能用的拓扑。可行性现在低：没声的话问题不在回声消除。不要和前面几步并在一次通话里。
+
+不放进这个顺序：整路删掉 `no-topology`、换掉整份音频 HAL、为这一项改基带或 NV、在第 2 步之前重编内核。
 
 同日第四十八轮：VoLTE，做第四十五轮的第 3 项，只查系统侧的运营商配置。没有改配置，没有写 NV，没有加载 MBN，没有拨出电话。
 
