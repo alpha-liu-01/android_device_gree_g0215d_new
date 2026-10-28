@@ -16,6 +16,7 @@ on post-fs
     mount none /mnt/vendor/persist /persist bind
 
 on post-fs-data
+    mkdir /data/misc/camera 0770 cameraserver camera
     chmod 0775 /persist/sensors
     chmod 0664 /persist/sensors/sensors_settings
     chown system root /persist/sensors/sensors_settings
@@ -187,6 +188,14 @@ service adsprpcd /vendor/bin/adsprpcd
     class main
     user media
     group media
+
+# ADSP camera modules are loaded by the userspace daemon. The HAL connects
+# to /data/misc/camera/cam_socket*. Video nodes are group camera.
+service mm-qcamera-daemon /vendor/bin/mm-qcamera-daemon
+    class main
+    user cameraserver
+    group camera audio input drmrpc system inet graphics
+    setenv LD_PRELOAD libshim_mutex.so
 
 service bootlog /system/bin/logcat -b crash -b main -b system -f /cache/boot-logcat.txt
     user root

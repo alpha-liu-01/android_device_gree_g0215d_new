@@ -1,0 +1,12 @@
+# Parsed after android.hardware.camera.provider@2.4-service.rc so this
+# override is the one init keeps. The stock HAL needs the Android 6
+# DisplayEventReceiver constructor, which libshim_camera supplies.
+service vendor.camera-provider-2-4 /vendor/bin/hw/android.hardware.camera.provider@2.4-service
+    override
+    interface android.hardware.camera.provider@2.4::ICameraProvider legacy/0
+    class hal
+    user cameraserver
+    group audio camera input drmrpc
+    ioprio rt 4
+    capabilities SYS_NICE
+    setenv LD_PRELOAD libshim_camera.so

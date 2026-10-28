@@ -1,0 +1,49 @@
+// Provides the Android 6 DisplayEventReceiver constructor that
+// Gree's camera.msm8996.so still calls. The camera provider preloads it.
+cc_library_shared {
+    name: "libshim_camera",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["libshim_camera.c"],
+    shared_libs: ["libgui"],
+}
+
+// Android 6 camera daemon vs Android 11 bionic: double mutex destroy,
+// and condition timeouts whose nanoseconds are not carried into seconds.
+cc_library_shared {
+    name: "libshim_mutex",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["libshim_mutex.c"],
+    shared_libs: ["libdl"],
+}
+
+// Android 6 DisplayEventReceiver::Event layout for camera.msm8996.so.
+// The HAL's DT_NEEDED points here instead of libgui.so.
+cc_library_shared {
+    name: "libgu2",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["libgu2.cpp"],
+    cflags: ["-fvisibility=default"],
+    shared_libs: [
+        "libdl",
+        "libgui",
+    ],
+}
+
+// Android 6 CameraMetadata object layout for camera.msm8996.so.
+// The HAL's DT_NEEDED points here instead of libcamera_client.so.
+cc_library_shared {
+    name: "libshim_metadata",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["libshim_metadata.cpp"],
+    cflags: ["-fvisibility=default"],
+    shared_libs: [
+        "libcamera_client",
+        "libcamera_metadata",
+        "libutils",
+        "liblog",
+    ],
+}

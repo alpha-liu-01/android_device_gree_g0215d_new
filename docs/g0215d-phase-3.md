@@ -304,10 +304,10 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 10. USB 功能切换。文件传输双向、PTP、MIDI、USB 网络共享都切换过，见 7I
 11. 振动。DRV2605 v1.1 已绑定，设置走的 vibrator HAL 能下发定时振动，见 7J。TWRP 里的振动以后再说
 12. 硬件视频和音频编解码。Venus `OMX.qcom.video.decoder.avc` / `OMX.qcom.video.encoder.avc` 与 ADSP `OMX.qcom.audio.decoder.aac`（经 `adsprpcd` 从 `/dsp` 动态加载 `HeaacDecoderModule.so.1`）均已在冷启动后验证通过，见 7K
+13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
 
 还没做，按这个优先级：
 
-13. **7L 相机**。旧的 7G「进程还在即可、出图留到阶段 5」作废。前后摄都能预览、拍照，并录一段短视频。传感器以 `msm8996_camera_G0215D.xml` 里的 `s5k3p3`、`ov8858` 为准。
 14. **7M 指纹录入与解锁**。旧 7G 的另一半，不再留到阶段 5。两侧电容键已经在用这颗 GF816M，指纹要的是 `/dev/goodix_fp` 和 `gx_fpd`，不能拆掉按键上报。验收：录入一枚指纹，锁屏能解开。
 
 不挡住收口，做了就记、不做也不停：短信、VoLTE/IMS、第二张卡、通话后回 LTE 的等待、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
@@ -495,7 +495,26 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
       - 硬件视频解码：`stagefright -N OMX.qcom.video.decoder.avc /data/local/tmp/h264.mp4` 输出 `decoded a total of 15 frame(s)`（单帧耗时 `2109.00 usecs`）。
       - 硬件视频编码与解码：`OMX.qcom.video.encoder.avc` 编码生成的 H.264 MP4 及 `stagefright -r` 硬件解码（`159.73 fps`）均通过。测试文件已清理。没有改内核和 boot，仍是 `boot-vibe.img`。
     - **整镜像**：`m systemimage` 成功，`/run/media/alpha/YMTC/g0215d/boot-test/system-7k.img`（稀疏格式，1701663264 字节，`sha256 6f62d3e714f6ddf05820003783777c255202916af1e8cfa563d71d50332479b4`）。staging 目录确认含 `/dsp -> /vendor/dsp`、`/vendor/bin/adsprpcd`、32/64 位 `libfrp.so`、`libadsprpc.so`、`libadsp_default_listener.so`、32 位 `libOmxAacDec.so`、`libOmxVdec.so`、`libOmxVenc.so`。这份镜像没有刷。
-  - **7L、7M**：见上面的剩余顺序。7L 是相机出图，7M 是指纹解锁。原来的 7G（相机和指纹只要求进程还在）作废。
+  - **7L（相机：前后摄预览、拍照、短视频通过）**：
+    - **验收**：用一个测试 APK（`gree.camgrab`，测完已卸载）按 Camera2 API 依次打开 0 号和 1 号相机，YUV 1280x720 预览加 JPEG 拍照，再用 `MediaRecorder` 的 surface 录 1.5 秒 H.264。后摄：预览出帧，照片 133566 字节（720x1280 JPEG，曝光和白平衡正常），视频 1280x720、39 帧。前摄：预览出帧，照片 140204 字节，视频 28 帧。抽帧看过，画面正常。系统自带相机（`com.android.camera2`）冷启动后能预览，拍出 `IMG_20261027_221901.jpg`，3456x4608，5011183 字节。全程没有 `CAM-SMMU` 或 CPP page fault。
+    - **已经通的部分**：原厂 32 位 `camera.msm8996.so` 和 `mm-qcamera-daemon` 在跑。内核设备树按原厂接线（后摄 `s5k3p3` CSI0，前摄 `ov8858` CSI2）。`SUB_MODULE_MAX` 收到 Android 6 HAL 的 12，`IR_LED` / `IR_CUT` / `LASER_LED` 挪到后面，否则 `VIDIOC_MSM_SENSOR_INIT_CFG32`（`0xc0bc56ca`，188 字节）对不上。两颗传感器都能 probe，后摄 EEPROM `sunny_a16s05e` 读到了校准。ISP 子模块和 `cpp_firmware_v1_10_0.fw` 已装上。`libshim_mutex.so` 拦了两件事：Android 11 对二次 `pthread_mutex_destroy` 会直接中止；daemon 把 5 亿纳秒加进 `tv_nsec` 却不进位，`pthread_cond_timedwait` 立刻返回，会话 2 的 `open_done` 一直是 0。进位之后，sensor / iface / isp / stats / pproc 的 `start_session` 都返回 1。
+    - **静态参数**：Android 6 的 `CameraMetadata` 是 8 字节（指针加锁，没有虚表）。Android 11 多了一个 `Parcelable` 虚表，锁标志落到 HAL 栈上的另一个局部变量里，`update()` 全部报 `CameraMetadata is locked`，`release()` 交出空指针，provider 在 `get_camera_metadata_entry_count` 空指针崩溃。`libshim_metadata.so` 按 8 字节布局实现这些符号，`camera.msm8996.so` 的 `DT_NEEDED` 把等长的 `libcamera_client.so` 换成它，其余符号仍转到系统的 `libcamera_client.so`。换上之后 provider 不再在这里崩溃，`get_number_of_cameras` 是 2。
+    - **显示**：vsync 回调按 Android 6 的 28 字节事件读时间戳（偏移 8）。Android 11 的 `Event` 是 40 字节，时间戳在偏移 16，多出来的字节把回调保存的寄存器冲掉，`Looper::pollInner` 跟着崩溃。`libgu2.so` 和 `libgui.so` 等长，HAL 的 `DT_NEEDED` 换成它，只翻译 `getEvents`，其余符号仍走系统的 `libgui.so`。provider 和 `android.hardware.graphics.composer@2.1-service` 都改到 `/dev/binder`，这样 SurfaceFlinger 和 `display.qservice` 在同一个驱动上。冷启动后 `dumpsys media.camera` 是 2 个设备：0 后摄朝向 90，1 前摄朝向 270。
+    - **ioctl 尺寸**：把内核 uapi 头按 32 位 ARM 编一遍，算出每个相机 ioctl 号，再和原厂库里出现的常量逐个对。iface 模块只有两条对不上，sensor、CSI、actuator、EEPROM、flash、CPP、buf_mngr 都一致。
+      - `VIDIOC_MSM_ISP_CFG_STREAM`：原厂是 44 字节（`0xc02c56c5`），内核 48 字节。反汇编 `libmmcamera2_iface_modules.so` 的调用点：`num_streams` 在偏移 0，8 路 handle 在 4–35，`cmd` 在 36，`sync_frame_id_src` 在 40，少的是末尾的 `dummy`。`boot-cam3` 按 7 路 handle 加 `dummy` 翻译，`cmd` 读错了位置。`boot-cam4` 改成 8 路 handle，不带 `dummy`。
+      - `VIDIOC_MSM_ISPIF_CFG`：原厂是 368 字节（`0xc17056c0`），内核 372 字节。差的是小米导入时给 `msm_ispif_param_data` 加的 `reserved_param`（`c9464fb45e41`），dmesg 报 `msm_ispif_subdev_ioctl_unlocked: invalid cmd 0xc17056c0`。`msm_ispif.c` 加一条 368 字节的 case，拷进清零的 `ispif_cfg_data` 再调 `msm_ispif_cmd`。`reserved_param` 是 0，停流超时走默认的 `ISPIF_TIMEOUT_ALL_US`。
+    - **`openCamera` 崩溃**：`camera_open` 之后 HAL 调 `sendSingleParam(30)`（`0x42450`），去 `display.qservice` 拿 `IQService`，再在栈上放两个 `Parcel`。Android 6 的 `Parcel` 约 52 字节，Android 11 是 60 字节，写越界，fault `0xfffff784`。`libgu2.so` 补了 `IQService::asInterface`（返回空）和 `Parcel` 的构造、析构、`writeInt32`（都不做事）。HAL 打一行 `getBinder: invalid binder object` 后继续。代价是相机开关不再通知 qservice。
+    - **缺的原厂库**：`camera/vendor/lib` 原来没有 JPEG 编码链和 3A 核心。拍照时 `qomx_image_core` 报 `OMX_GetHandle: Cannot load the library`，AEC/AWB/AF 一直是 dummy（`libmmcamera2_q3a_core.so` not found）。从 `third_party/android_vendor_Gree_G0215D-Marshmallow` 补了 18 个 32 位库，依赖都在手机上或在这一组里：`libqomx_jpegenc.so`、`libqomx_jpegenc_pipe.so`、`libqomx_jpegdec.so`、`libmmqjpeg_codec.so`、`libmmqjpegdma.so`、`libmmjpeg.so`、`libjpegehw.so`、`libjpegdhw.so`、`libjpegdmahw.so`、`libmmcamera2_q3a_core.so`、`libmmcamera2_frame_algorithm.so`、`libmmcamera_dummyalgo.so`、`libmmcamera_tintless_algo.so`、`libmmcamera_tintless_bg_pca_algo.so`、`libmmcamera_faceproc.so`、`libmmcamera_imglib_faceproc_adspstub.so`、`libmmcamera_imglib.so`、`libmmcamera_hdr_gb_lib.so`。`libmmcamera_tuning.so` 没放，它要 `libmm-qcamera.so`。
+    - **gralloc 句柄**：HAL 按 Android 6 的 `private_handle_t` 读字段。18.1 编的是 `display/gralloc`（`gr_priv_handle.h`），字段顺序变了：偏移 28 原来是 `size`，现在是 `width`；偏移 68 原来是 `width`，现在是 64 位 `base` 的高半，32 位进程里恒为 0。
+      - `QCamera3GrallocMemory::registerBuffer` 用偏移 28 当 mmap 长度，1280x720 的缓冲区只映射了 1280 字节。
+      - `QCamera3PicChannel::jpegEvtHandle` 用偏移 68 当 JPEG 缓冲区大小，得到 0，把 8 字节的 `camera3_jpeg_blob` 写到缓冲区前 8 字节，`OMX_ImgEnc` 线程 `SEGV_ACCERR`。
+      - `camera.msm8996.so` 原位改两条指令：`0x58d3e` 的 `ldr r7, [r1, #28]` 改成 `#52`（`size`），`0x5cb86` 的 `ldr.w sl, [r2, #68]` 改成 `#36`（`unaligned_width`，框架给 BLOB 流请求的大小）。改完是 891308 字节，`sha256 b455af39b59ac91d0c80858c47061e33d370b2d5defcfe9ed4d9fc9a6c192405`。HAL1 的 `QCameraGrallocMemory` 没改，相机走的是 HAL3。
+    - **UBWC**：HAL 默认预览和录像都用 UBWC（`CAM_FORMAT_YUV_420_NV12_UBWC`，CPP 日志 `fmt 65`，带 meta plane），给 gralloc 打的是 Android 6 的 `GRALLOC_USAGE_PRIVATE_ALLOC_UBWC`。新 gralloc 只认自己的 `GRALLOC1_PRODUCER_USAGE_PRIVATE_ALLOC_UBWC`（`1 << 28`），两边对缓冲区格式的判断不一致。用法位没有逐位核对。录像时 CPP 访问 IOVA 0，`cam_smmu_check_vaddr_in_range: Cannot find vaddr:0`，`msm_cpp_cfg_frame: page fault occurred`，HAL 报 `camera daemon died`，视频只有 1 帧。`device.mk` 加 `persist.camera.preview.ubwc=0`、`persist.camera.video.ubwc=0`，改用线性 NV12 VENUS。之后录像 39 帧、28 帧，没有 page fault。
+    - **系统相机**：手机上没有 `media_profiles`，`CamcorderProfile.hasProfile` 全是 false，`com.android.camera2` 启动就报 `Could not find supported video qualities`。从 cm-14.1 树拿 `configs/media_profiles.xml`，放成 `media/media_profiles_V1_0.xml`，装到 `/vendor/etc`（`sha256 e01989728f2361f1b845922de611f263e452ab249a8ff7d68773c3e9d4319215`）。zygote 预加载 `CamcorderProfile` 时就缓存了 `MediaProfiles`，推完文件要重启才生效。
+    - **还没解决**：有一次冷启动 provider 报 0 个设备，`dumpsys media.camera` 也是 0，系统相机在 `BOOT_COMPLETED` 时把 `CameraLauncher` 禁用了。手动重启 provider 是 2 个，下一次冷启动也是 2 个，启动器跟着恢复。原因没找到，那次的日志没留住。前摄 EEPROM 库 `libmmcamera_sunny_d8v03c_eeprom.so` 原厂包里也没有（`Failed eeprom_load_library`），前摄没有校准数据也能出图。chromatix module 4 仍是空的，`libthermalclient.so` 也没有。调试时把 `persist.camera.global.debug`、`persist.camera.mm-camera` 设成 3，`persist.camera.sensor.debug` 设成 2，只在手机上，没有写进 `device.mk`。
+    - **内核**：当前 boot 是 `/run/media/alpha/YMTC/g0215d/boot-test/boot-cam4.img`，13615104 字节，`sha256 c279eef39239a1de55546e7dfd38d3a7d497b37b4704461277dd2ccf5e850b93`。已刷，读回一致。内核是 `4.4.302-perf+ #32`，`Image.gz-dtb` 12774843 字节，结束地址 `0x80c36dbb`，低于 ramdisk 的 `0x81000000`。cmdline 和 ramdisk 沿用 `boot-cam2.img`。上一份 `boot-cam3.img` 是 13615104 字节，`sha256 0a1857ea2924020f0e2295af4389255825c215c9539c6c399306ab89dc21dd7a`。内核改动（设备树、`msm_cam_sensor.h`、`msm_isp_util.c`、`msm_ispif.c` 等）还没提交。`adsprpcd` 还在。
+    - **整镜像**：`/run/media/alpha/YMTC/g0215d/boot-test/system-7l.img`，1745732152 字节，`sha256 205516952e2dd68c8d42e8cd5008be2f80bd7a25eae6aed49a0ee114dc138191`，没有刷。第一次 `m systemimage` 停在 `firmware/cpp_firmware_v1_10_0.fw` 找不到：18.1 树里那份拷贝漏了它，`init.gree.rc`（daemon 的 `LD_PRELOAD libshim_mutex.so`）和 `camera/gree-camera.rc`（provider 的 override）也是旧的。三个文件补齐后重编通过。暂存目录里的 HAL、`libgu2.so`、两个 shim、JPEG 与 3A 库、`media_profiles_V1_0.xml`、两个 rc 和 CPP 固件都和手机上的 md5 一致，`build.prop` 里有两条 `ubwc=0`。
+  - **7M**：见上面的剩余顺序。7L 已经通过，下一项是指纹。原来的 7G（相机和指纹只要求进程还在）作废。
 
 ### 事件
 
@@ -593,6 +612,19 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
 
+同日第十九轮：7L 相机通过。前后摄都能预览、拍照、录短视频，系统相机冷启动后能拍照。boot 换成 `boot-cam4.img`，已刷。细节见 7L。
+1. **ioctl 尺寸**：原厂库和内核只差两条。`ISP_CFG_STREAM` 是 8 路 handle、不带 `dummy` 的 44 字节，`boot-cam3` 的翻译读错了 `cmd` 的位置。`ISPIF_CFG` 是 368 字节，缺小米加的 `reserved_param`。两条都在内核里翻成现有结构。
+2. **`openCamera` 崩溃**：HAL 在栈上放 Android 6 大小的 `Parcel`，给 `display.qservice` 发消息时写越界。`libgu2.so` 补了 `IQService::asInterface` 和 `Parcel` 的空实现。
+3. **原厂库**：补 18 个 32 位库，有 JPEG 编码链、3A 核心、tintless、faceproc。拍照不再报 `OMX_GetHandle`，AEC/AWB/AF 不再是 dummy。
+4. **gralloc 句柄**：新旧 `private_handle_t` 字段顺序不同，HAL 读到的大小是 `width` 或 0。`camera.msm8996.so` 改两条 `ldr` 的偏移，拍照不再在 `OMX_ImgEnc` 里崩溃。
+5. **录像**：UBWC 缓冲区和新 gralloc 对不上，CPP 访问 IOVA 0 后 daemon 退出。`persist.camera.{preview,video}.ubwc=0` 之后不再有 page fault。
+6. **系统相机**：补 `/vendor/etc/media_profiles_V1_0.xml`，重启后系统相机能打开并拍照。有一次冷启动 provider 报 0 个设备，原因没找到。
+7. **整镜像**：`system-7l.img` 编出来了，`sha256 205516952e2dd68c8d42e8cd5008be2f80bd7a25eae6aed49a0ee114dc138191`，没有刷。18.1 树里漏的 CPP 固件和两个旧 rc 已经补上。内核改动还没提交。
+
+同日第十八轮：7L 仍未出图。两颗相机已经登记（后摄 90 度，前摄 270 度）。vsync 事件长度和 `display.qservice` 所在的 binder 已经对上。ISP 的 `CFG_STREAM` 从 44 字节翻成内核的 48 字节，boot 换成 `boot-cam3.img`，已刷。打开后摄仍在 `openCamera` 里崩溃，没有预览、照片或短视频。整镜像没编。细节见 7L。
+
+同日第十七轮：7L 相机还没出图。两颗传感器能 probe，会话能建起来，静态参数不再是空指针，provider 停在 vsync 线程的 `Looper::pollInner` 崩溃。细节见 7L。boot 换成 `boot-cam2.img`，已刷。整镜像没编。
+
 同日第十六轮：7K 硬件视频与音频编解码，Venus H.264 硬件解码/编码与 ADSP AAC 硬件解码全部通过，细节见 7K。没有动内核和 boot。
 1. **Venus 视频编解码**：补齐 OMX 组件、`media_codecs.xml` 与 `mediacodec.policy`，并在 `MediaCodecList.cpp` 保留 `sOmxInfoBuilder`，解除软件 Codec2 输入 surface 对 OMX 硬件编码器的屏蔽。
 2. **ADSP AAC 解码根因**：MSM8996 的 `adsp.b08` 仅内置 MP3，AAC 需在打开 `/dev/msm_aac` 时经 `adsprpcd` 从 `/dsp`（`/vendor/dsp`）动态加载 `HeaacDecoderModule.so.1`；而原厂 Android 6 的 `libadsprpc.so` 打开 `/dev/adsprpc-smd` 后未调 4.4 内核要求的 `FASTRPC_IOCTL_GETINFO`（域 0），导致 `FASTRPC_IOCTL_INIT` 失败。
@@ -616,7 +648,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 ## 本阶段不做
 
 - 不把本仓库现有的 `BoardConfig.mk` 改去继承 18.1，阶段 4 还要用现在这份对 `msm8996-common` 的留白
-- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`
+- 不重编内核，除非步骤 6 退回来。例外：7H 的两侧电容键需要新驱动，内核重编为 `#19`；7C 的声卡要改 DTS 和两处驱动崩溃，镜像为 `boot-audio9.img`。7J 的 DRV2605 没有绑定，内核重编为 `#27`，镜像为 `boot-vibe.img`。7L 的相机设备树和 ioctl 尺寸要对上 Android 6 HAL，镜像先后是 `boot-cam2.img`、`boot-cam3.img`、`boot-cam4.img`，内核是 `#32`
 - 不另编一版新 TWRP，也不格式化 data。步骤 1 只把 recovery 刷回 2016 年那份能读 footer 的镜像
 - 不动 aboot、xbl、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist、dsp
 - 不刷 `third_party/` 里的卡刷包

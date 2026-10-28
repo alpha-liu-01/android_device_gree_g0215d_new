@@ -29,7 +29,10 @@ PRODUCT_PROPERTY_OVERRIDES += \
     wifi.interface=wlan0 \
     vendor.qcom.bluetooth.soc=rome \
     ro.bt.bdaddr_path=/vendor/etc/bluetooth/bdaddr \
-    ro.vendor.rfkilldisabled=0
+    ro.vendor.rfkilldisabled=0 \
+    persist.camera.HAL3.enabled=1 \
+    persist.camera.preview.ubwc=0 \
+    persist.camera.video.ubwc=0
 
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.adb.secure=0 \
@@ -102,6 +105,17 @@ PRODUCT_PACKAGES += \
     tinyplay \
     android.hardware.light@2.0-service \
     lights.msm8996 \
+    android.hardware.camera.provider@2.4-service \
+    android.hardware.camera.provider@2.4-impl \
+    camera.device@1.0-impl \
+    camera.device@3.2-impl \
+    camera.device@3.3-impl \
+    camera.device@3.4-impl \
+    camera.device@3.5-impl \
+    libshim_camera \
+    libshim_mutex \
+    libshim_metadata \
+    libgu2 \
     android.hardware.wifi@1.0-service \
     libwifi-hal-ctrl \
     libwpa_client \
@@ -124,6 +138,7 @@ PRODUCT_COPY_FILES += \
     frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml \
     $(LOCAL_PATH)/bluetooth/bdaddr:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth/bdaddr \
     $(LOCAL_PATH)/media/media_codecs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs.xml \
+    $(LOCAL_PATH)/media/media_profiles_V1_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_profiles_V1_0.xml \
     $(LOCAL_PATH)/media/mediacodec-arm.policy:$(TARGET_COPY_OUT_VENDOR)/etc/seccomp_policy/mediacodec.policy \
     $(LOCAL_PATH)/media/libOmxAacDec.so:$(TARGET_COPY_OUT_VENDOR)/lib/libOmxAacDec.so \
     $(LOCAL_PATH)/media/lib/libadsprpc.so:$(TARGET_COPY_OUT_VENDOR)/lib/libadsprpc.so \
@@ -145,6 +160,14 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/keylayout/gpio-keys.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/gpio-keys.kl \
     $(LOCAL_PATH)/keylayout/tiny4412-key.kl:$(TARGET_COPY_OUT_VENDOR)/usr/keylayout/tiny4412-key.kl \
     $(LOCAL_PATH)/camera/msm8996_camera_G0215D.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/camera/msm8996_camera_G0215D.xml \
+    $(LOCAL_PATH)/camera/etc/s5k3p3_chromatix.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/camera/s5k3p3_chromatix.xml \
+    $(LOCAL_PATH)/camera/etc/ov8858_chromatix.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/camera/ov8858_chromatix.xml \
+    $(LOCAL_PATH)/camera/bin/mm-qcamera-daemon:$(TARGET_COPY_OUT_VENDOR)/bin/mm-qcamera-daemon \
+    $(LOCAL_PATH)/camera/gree-camera.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/gree-camera.rc \
+    $(LOCAL_PATH)/camera/lib/hw/camera.msm8996.so:$(TARGET_COPY_OUT_VENDOR)/lib/hw/camera.msm8996.so \
+    $(foreach lib,$(wildcard $(LOCAL_PATH)/camera/lib/*.so),$(lib):$(TARGET_COPY_OUT_VENDOR)/lib/$(notdir $(lib))) \
+    $(foreach lib,$(wildcard $(LOCAL_PATH)/camera/vendor/lib/*.so),$(lib):$(TARGET_COPY_OUT_VENDOR)/lib/$(notdir $(lib))) \
+    $(LOCAL_PATH)/firmware/cpp_firmware_v1_10_0.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/cpp_firmware_v1_10_0.fw \
     $(LOCAL_PATH)/firmware/A4_2F_4.0_05.fw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/A4_2F_4.0_05.fw \
     $(LOCAL_PATH)/firmware/Gree2_4005_V2.06_20170223.raw:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/Gree2_4005_V2.06_20170223.raw \
     $(LOCAL_PATH)/firmware/a530_gpmu.fw2:$(TARGET_COPY_OUT_SYSTEM)/etc/firmware/a530_gpmu.fw2 \
