@@ -5,3 +5,5 @@
 /firmware    u:object_r:firmware_file:s0
 # Real /persist directory. init bind-mounts /mnt/vendor/persist here.
 /persist    u:object_r:persist_file:s0
+# Ramdisk copy of the compiled file contexts. The system image merges root/.
+/file_contexts\.bin    u:object_r:file_contexts_file:s0

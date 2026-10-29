@@ -121,6 +121,9 @@ PRODUCT_PACKAGES += \
     tinyplay \
     fmroute \
     fmtune \
+    FM2 \
+    qcom.fmradio \
+    libqcomfm_jni \
     android.hardware.light@2.0-service \
     lights.msm8996 \
     android.hardware.camera.provider@2.4-service \
@@ -150,6 +153,11 @@ PRODUCT_PACKAGES += \
     android.hardware.nfc@1.2-service \
     NfcNci \
     Tag
+
+# Si4705 is a V4L tuner on /dev/radio0. FM2 uses that path when
+# vendor.qcom.bluetooth.soc is rome. BOARD_HAVE_QCOM_FM also pulls
+# iris fm_helium, which this board does not have.
+PRODUCT_BOOT_JARS += qcom.fmradio
 
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
