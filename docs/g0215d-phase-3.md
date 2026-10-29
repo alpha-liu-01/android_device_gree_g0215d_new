@@ -305,9 +305,9 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 11. 振动。DRV2605 v1.1 已绑定，设置走的 vibrator HAL 能下发定时振动，见 7J。TWRP 里的振动以后再说
 12. 硬件视频和音频编解码。Venus `OMX.qcom.video.decoder.avc` / `OMX.qcom.video.encoder.avc` 与 ADSP `OMX.qcom.audio.decoder.aac`（经 `adsprpcd` 从 `/dsp` 动态加载 `HeaacDecoderModule.so.1`）均已在冷启动后验证通过，见 7K
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
-14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮
+14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮。第一次拒绝之后芯片不再采图的问题已修，见同日第六十三轮
 
-不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、FM 的图形界面、SELinux enforcing、加密和可刷写的安装包。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC 读卡、FM 的图形界面、SELinux enforcing、加密和可刷写的安装包。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮。NFC 协议栈已起来，设置页不再卡，读卡还没确认，见同日第六十四轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -323,7 +323,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 6. **手机加密**。文件加密已经在用：ext4 policy v1，内容 `aes-256-xts`，文件名 `aes-256-cts`，legacy session keyring。TWRP 能解开，见同日第六十轮。桌面锁屏还没收回来：为了走出 logo，`locksettings` 里的 `sp-handle` 被删过，`spblob` 还在。这一项还没记成做完。4.4 内核不实现 `FS_IOC_ADD_ENCRYPTION_KEY`，软件 keymaster 写不了 ICE keyslot，所以不用 footer 全盘加密，也不用 metadata encryption。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
 7. **红外**。已做，见同日第六十一轮。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。发射走 I2C 上的 Raon，不是 GPIO 脉冲。学习还没做，原厂 `com.gree.irremote` 没有装。
 8. **FM 收音机**。芯片和耳机出声已经做了，见同日第六十二轮。102.1 没有杂音，音量键能调。桌面上还没有开关和选台的应用，这一项先不记成做完。
-9. **NFC**。`/vendor/etc/permissions/` 里已经放了 NFC 的特性 XML，功能没有做。
+9. **NFC**。协议栈已经起来，设置页不再卡住，见同日第六十四轮。芯片是 PN547，读卡还没确认，这一项先不记成做完。eSE 仍没有。
 10. **SELinux enforcing**。放在最后。前面每加一个 HAL 都会多一批 denial；现在切只会反复改策略。转之前先补蓝牙、RIL、指纹、相机已经记下来的 denial。在此之前保持 permissive，开机 denial 继续存。
 
 ### 实现笔记
@@ -626,6 +626,25 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第六十五轮：`ims_rtp_daemon` 不再吃满一颗核。进程仍是 `system`，QMI 服务还在。没有格式化 data，没有打电话。
+
+1. **原因**。内核的 IPC router 只允许带 `CAP_NET_RAW` 或 `CAP_NET_BIND_SERVICE` 的进程 `bind`。这个服务原来以 `system` 跑，没有这两项能力，`dmesg` 是 `msm_ipc_router_bind: ims_rtp_daemon Do not have permissions`。`bind` 失败后两个 `AF_MSM_IPC` 套接字被关掉，描述符号被 `/dev/hwbinder` 和 `trace_marker` 复用。QMI 线程的 `select` 仍盯着 7 和 8，这两个描述符一直可读，于是空转。`imsrcsd` 不走这条服务器注册，所以是闲的。关掉调试日志停不了这个循环。
+2. **修复**。`vendor.gree.radio.rc` 给 `vendor.ims_rtp_daemon` 加了 `capabilities NET_BIND_SERVICE`。没有改成 root。`vendor.imsdatadaemon` 本来就是 root，因为它自己会降到 `system`。init 要重启才读 rc，所以重启了一次。
+3. **实机**。重启后 uid 1000，`CapEff` 是 `0x400`（`CAP_NET_BIND_SERVICE`）。描述符 7 和 8 是套接字，不再是 hwbinder。两秒内 CPU tick 增量是 0。这次开机的 `dmesg` 没有新的 permission 行。Wi-Fi 重新关联。
+
+同日第六十四轮：NFC 设置页的卡顿已经消失。这一次 `NfcNci`（pid 8502）的日志里没有错误、没有 `Watchdog`、没有 `INVALID_PARAM`、也没有 HCI 注册失败。读卡还没人贴过，第 9 项先不记成做完。没有格式化 data，没有打电话，没有重启。`dumpsys nfc` 会和路由看门狗抢同一把锁，不要用。
+
+1. **设置页**。PN547 是 NCI 1.0。屏幕解锁时 `ApplyRoutingTask` 拿着 `NfcService` 的锁发 `RF_DISCOVER`。原来的 `POLLING_TECH_MASK=0x6F` 带上 ISO15693、Kovio 和主动 P2P，`P2P_LISTEN_TECH_MASK=0x45` 再带主动监听。芯片回 `41 03 01 09`（`STATUS_INVALID_PARAM`）。协议栈不发发现开始事件，`startRfDiscovery` 一直等，10 秒后看门狗 `doAbort`，进程 `SIGABRT`，大约每 11 秒一次。设置主线程调 `NfcAdapter.isEnabled`，binder 死了就卡住，蓝牙那一页也问 NFC，所以两个界面一起顿。改成 `POLLING_TECH_MASK=0x07`（A/B/F）和 `P2P_LISTEN_TECH_MASK=0x05`（监听 A/F）之后，发现命令是 `21 03 0B 05 00 01 01 01 02 01 80 01 82 01`，应答 `41 03 01 00`。使用者确认 NFC 页面不再卡。`libnfc_nci_jni.so` 里这次等待加上 3 秒超时，以后再被拒绝也不会把设置冻住。`NFC_DEBUG_ENABLED=0`。
+2. **这次日志**。芯片仍是 PN547C2，固件 `8.1.26`，和 `libpn547_fw.so` 一致，没有刷固件。`NFA_DM_ENABLE_EVT` 成功。待机时 I2C 回 `0x1ff`、日志写 `Maybe in Standby Mode`，HAL 会重试，这不是故障。`EseAdaptation` 找不到 eSE HAL 是预期的。
+3. **调试项**。相机 `persist.camera.global.debug`、`persist.camera.sensor.debug`、`persist.camera.mm-camera` 改成 0。`log.tag.NxpHal` 和 `log.tag.APM_AudioPolicyManager` 改成 `INFO`，后两个不带 `persist`，重启后回到默认。`wpa_supplicant` 的 `-dd` 从 `android.hardware.wifi.supplicant-service.rc` 去掉了，源码和手机上的 rc 都是。init 要重启才重读 rc；当时在跑的进程是去掉 `-dd` 的那份，Wi-Fi 已经重新关联（`COMPLETED`）。重启之后 rc 不再带 `-dd`。在重启之前如果把 Wi-Fi 开关一次，内存里的旧服务定义还会带上 `-dd`。`/data/local/tmp` 里的 boot 和 recovery 镜像删了，目录从大约 458MB 降到 17MB，剩下的是 `radio_push`。tombstone、ANR、dropbox，以及 `/cache/boot-kmsg.txt`、`phase2-dmesg.txt`、`boot-debug-marker` 删了。`/cache` 里那份原厂 boot 压缩包、`/data/fbe-before`、`/data/fbe-staging` 留着。
+4. **还在占的一颗核**。`persist.vendor.ims.disableDebugLogs`、`disableADBLogs`、`disableIMSLogs`、`disableDebugDataPathLogs`、`disableQXDMLogs` 都设成 1 之后，`Modem version could not be determined` 不再刷日志。`ims_rtp_daemon` 仍大约每秒 100 个 tick，就是一颗核。烧的是 `ims_rtp_qmi_handler_thread_func`：`select` 的超时是空指针，返回值不看，接着 `qmi_csi_handle_event`，描述符一直可读，所以马上返回。`imsrcsd` 是闲的。树里没有这份源码。进程没有停，它是 VoLTE 的 RTP 路径，IMS 还没做完。没有把 `vendor.qti.hardware.radio.ims` 写进 manifest。
+
+同日第六十三轮：指纹。第一次对不上之后，后面按上去不再振动、也不再识别。熄屏再亮没用。使用者确认修好了。没有删模板，没有改图案，没有动电容按键那条路径。没有重编内核。
+
+1. **现象**。Goodix GF816M。比对失败时守护进程 `gx_MatchCancel`，把芯片设成按键模式（`Set mode:1`）。框架的 `AuthenticationClient` 还留着，等下一张图。下一帧中断是 `Signal in NAV`，不是指纹图，所以不振、也不扫。用图案解开会发 `ERROR_CANCELED`，会话才重新开始。
+2. **修复**。`fid == 0` 时先把 `onAuthenticated(false)` 交上去。回调还在厂商 HAL 的栈上，芯片刚切回按键模式，所以另起一个线程，等 100 ms，再直接调 `mDevice->authenticate`。`mAuthActive` 已经清掉，或者 `mAuthGeneration` 变了，就不再打开。成功和 `cancel()` 都会清掉 `mAuthActive` 并加一代。`cancel()` 拿着设备锁改标志再调 `cancel`。重新打开如果返回非 0，先静默 `mDevice->cancel`（不走 `BiometricsFingerprint::cancel`），再试一次。通知回调不拿设备锁。
+3. **镜像**。`/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.0-service`，`sha256 c09c35f8e8cf218e5725ec5a8d76fe797592d9b762bd16f09a91a553a86da694`。源码在 18.1 树的 `hardware/lineage/interfaces/biometrics/fingerprint/2.0/BiometricsFingerprint.cpp`。不在认证会话里时，电容键仍走原来的按键模式。
 
 同日第六十二轮：FM 收音机。有线耳机当地线，102.1 是干净的台，音量键能调。没有格式化 data，没有打电话，没有改语音拓扑，没有写 numid 6。内核是 `#48`，已经在手机上。调试进程已经停掉，芯片断电，环回音量是 0。图形界面还没有。
 

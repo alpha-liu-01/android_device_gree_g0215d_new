@@ -130,10 +130,15 @@ service vendor.imsdatadaemon /vendor/bin/imsdatadaemon
     disabled
     writepid /dev/cpuset/system-background/tasks
 
+# Binds an IPC-router server. The kernel allows that only for
+# CAP_NET_RAW or CAP_NET_BIND_SERVICE. Without it, bind fails, the
+# sockets are closed, and the QMI select loop keeps watching the reused
+# fd numbers (hwbinder and trace_marker), which burns one core.
 service vendor.ims_rtp_daemon /vendor/bin/ims_rtp_daemon
     class main
     user system
     group radio diag inet log
+    capabilities NET_BIND_SERVICE
     writepid /dev/cpuset/system-background/tasks
 
 service vendor.imsrcsservice /vendor/bin/imsrcsd

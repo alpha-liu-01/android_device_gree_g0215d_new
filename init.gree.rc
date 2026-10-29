@@ -36,6 +36,8 @@ on post-fs-data
     mkdir /data/misc/location 0770 gps gps
     mkdir /data/misc/location/gpsone_d 0770 gps gps
     mkdir /data/misc/location/mq 0770 gps gps
+    mkdir /data/nfc 0770 nfc nfc
+    mkdir /data/nfc/param 0770 nfc nfc
     mkdir /data/system/fingerprint 0770 system system
     mkdir /data/system/fingerprint/calibration 0770 system system
     mkdir /data/system/fingerprint/register 0770 system system

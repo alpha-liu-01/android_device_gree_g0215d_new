@@ -146,10 +146,17 @@ PRODUCT_PACKAGES += \
     libloc_core \
     libloc_eng \
     gps.default \
-    android.hardware.biometrics.fingerprint@2.0-service
+    android.hardware.biometrics.fingerprint@2.0-service \
+    android.hardware.nfc@1.2-service \
+    NfcNci \
+    Tag
 
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
+    $(LOCAL_PATH)/nfc/libnfc-nci.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-nci.conf \
+    $(LOCAL_PATH)/nfc/libnfc-nxp.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-nxp.conf \
+    $(LOCAL_PATH)/nfc/libpn547_fw.so:$(TARGET_COPY_OUT_VENDOR)/firmware/libpn547_fw.so \
+    $(LOCAL_PATH)/nfc/libpn547_fw.so:$(TARGET_COPY_OUT_VENDOR)/lib64/libpn547_fw.so \
     $(LOCAL_PATH)/rootdir/etc/fstab.qcom:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.qcom \
     $(LOCAL_PATH)/rootdir/fbe-migrate.sh:$(TARGET_COPY_OUT_SYSTEM)/bin/fbe-migrate.sh \
     $(LOCAL_PATH)/rootdir/etc/fstab.ramdisk:$(TARGET_COPY_OUT_RAMDISK)/fstab.qcom \
