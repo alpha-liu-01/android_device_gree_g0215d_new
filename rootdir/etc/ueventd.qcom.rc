@@ -70,7 +70,9 @@ firmware_directories /vendor/firmware_mnt/image/
 #permissions for pta
 /dev/pta                  0660   system     system
 
-/dev/radio0               0640   system     system
+# FM2 is platform-signed and holds ACCESS_BROADCAST_RADIO, which is the
+# media group. The tuner ioctls need write, so group media is rw.
+/dev/radio0               0660   system     media
 /dev/rfcomm0              0660   bluetooth  bluetooth
 /dev/ttyUSB0              0660   bluetooth  bluetooth
 /dev/smdcntl0             0640   radio      radio

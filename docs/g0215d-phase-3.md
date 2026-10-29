@@ -307,7 +307,7 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
 14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮。第一次拒绝之后芯片不再采图的问题已修，见同日第六十三轮
 
-不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC 读卡、FM 的图形界面、SELinux enforcing、加密。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮；应用已经打进新包，手机还没刷，见同日第六十六轮。NFC 协议栈已起来，设置页不再卡，读卡还没确认，见同日第六十四轮。可刷写的安装包见同日第五十八轮，更新的一份见同日第六十六轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC 读卡、FM 的图形界面、SELinux enforcing、加密。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮。应用已打进包，打开失败已修，见同日第六十七轮。NFC 协议栈已起来，设置页不再卡，读卡还没确认，见同日第六十四轮。可刷写的安装包见同日第五十八轮，更新的一份见同日第六十六轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -322,7 +322,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 5. **能解密的新 TWRP**。已做，见同日第五十九轮和同日第六十轮。第五十九轮：TeamWin android-11 上的 3.7.0_11，未加密的 data 能挂，system-as-root 认 `/system_root/system/build.prop`，第五十八轮的包能刷，画面、触摸和振动都对。第六十轮：文件加密的 data 用原来的图案解开，日志是 `User 0 Decrypted Successfully`，`/data/media/0` 是明文目录名。
 6. **手机加密**。文件加密已经在用：ext4 policy v1，内容 `aes-256-xts`，文件名 `aes-256-cts`，legacy session keyring。TWRP 能解开，见同日第六十轮。桌面锁屏还没收回来：为了走出 logo，`locksettings` 里的 `sp-handle` 被删过，`spblob` 还在。这一项还没记成做完。4.4 内核不实现 `FS_IOC_ADD_ENCRYPTION_KEY`，软件 keymaster 写不了 ICE keyslot，所以不用 footer 全盘加密，也不用 metadata encryption。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
 7. **红外**。已做，见同日第六十一轮。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。发射走 I2C 上的 Raon，不是 GPIO 脉冲。学习还没做，原厂 `com.gree.irremote` 没有装。
-8. **FM 收音机**。芯片和耳机出声已经做了，见同日第六十二轮。102.1 没有杂音，音量键能调。开关和选台的 `FM2` 已经打进第六十六轮的包，手机还没刷，桌面上现在仍没有，这一项先不记成做完。
+8. **FM 收音机**。芯片和耳机出声已经做了，见同日第六十二轮。102.1 没有杂音，音量键能调。`FM2` 打进第六十六轮的包之后，应用打开芯片失败，见同日第六十七轮。第六十七轮已经能打开并调到 98.1，声音走有线耳机。使用者还没确认这一次听感，这一项先不记成做完。
 9. **NFC**。协议栈已经起来，设置页不再卡住，见同日第六十四轮。芯片是 PN547，读卡还没确认，这一项先不记成做完。eSE 仍没有。
 10. **SELinux enforcing**。放在最后。前面每加一个 HAL 都会多一批 denial；现在切只会反复改策略。转之前先补蓝牙、RIL、指纹、相机已经记下来的 denial。在此之前保持 permissive，开机 denial 继续存。
 
@@ -626,6 +626,12 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第六十七轮：`FM2` 打开收音机失败。应用自己打开 `/dev/radio0` 被拒绝。没有重编内核，没有格式化 data，没有打电话。
+
+1. **日志**。`FmTransceiver: Fail to Open -1`。节点是 `crw-r----- system system`。应用是 `u0_a157`，不在 `system` 组。`open` 失败，后面的上电和调台都没走到。`fm_helium.so` 找不到是预期的：`vendor.qcom.bluetooth.soc` 是 `rome`，走 V4L，不走 iris。
+2. **修复**。`ueventd` 把 `/dev/radio0` 改成 `0660 system media`。`FM2` 加上 `ACCESS_BROADCAST_RADIO`，这个权限对应 `media` 组（gid 1013），平台签名直接授予。JNI 改成 `O_RDWR`，只读打开时 `VIDIOC_S_CTRL` 会被拒绝。手机上的库、apk 和 `ueventd.rc` 已经换上，节点现在是 `system:media` `0660`。
+3. **实机**。进程组里有 `1013`。`Opened 59`，`turning on 1`，`tuneRadio: 98.1`，回调频率 `98100`。`handle_fm=1048580`，日志是 `Route audio to WiredHeadset`。第 8 项等使用者确认听感后再记成做完。
 
 同日第六十六轮：TWRP fork 和内核树已经推到 GitHub。新的刷机包带上 FM 应用。没有刷进手机，没有格式化 data，没有打电话。
 
