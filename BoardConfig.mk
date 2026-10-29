@@ -79,6 +79,9 @@ BOARD_SUPPORTS_SOUND_TRIGGER := true
 # 0x11C05000", VoiceMMode1). Without this the HAL ignores that parameter and
 # opens the legacy CS-Voice session instead (step 7F, voice audio).
 AUDIO_FEATURE_ENABLED_MULTI_VOICE_SESSIONS := true
+# Si4705 digital audio is a tertiary-MI2S loopback. The HAL only opens
+# that path when this flag compiles audio_extn/fm.c.
+AUDIO_FEATURE_ENABLED_FM_POWER_OPT := true
 # ADSP loads codec modules (HeaacDecoderModule.so.1, etc.) from /dsp via adsprpcd.
 BOARD_ROOT_EXTRA_SYMLINKS += /vendor/dsp:/dsp
 

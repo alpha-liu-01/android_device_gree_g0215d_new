@@ -119,6 +119,8 @@ PRODUCT_PACKAGES += \
     tinycap \
     tinymix \
     tinyplay \
+    fmroute \
+    fmtune \
     android.hardware.light@2.0-service \
     lights.msm8996 \
     android.hardware.camera.provider@2.4-service \

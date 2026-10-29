@@ -1,0 +1,15 @@
+cc_binary {
+    name: "fmroute",
+    srcs: ["fmroute.cpp"],
+    include_dirs: [
+        "frameworks/av/media/libmedia/include",
+        "frameworks/av/media/libmediametrics/include",
+    ],
+    shared_libs: [
+        "libaudioclient",
+        "libutils",
+        "libbinder",
+        "liblog",
+        "libcutils",
+    ],
+}

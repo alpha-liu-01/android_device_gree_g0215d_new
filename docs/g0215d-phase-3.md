@@ -307,7 +307,7 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
 14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮
 
-不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、FM、SELinux enforcing、加密和可刷写的安装包。红外已做，见同日第六十一轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、FM 的图形界面、SELinux enforcing、加密和可刷写的安装包。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -322,7 +322,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 5. **能解密的新 TWRP**。已做，见同日第五十九轮和同日第六十轮。第五十九轮：TeamWin android-11 上的 3.7.0_11，未加密的 data 能挂，system-as-root 认 `/system_root/system/build.prop`，第五十八轮的包能刷，画面、触摸和振动都对。第六十轮：文件加密的 data 用原来的图案解开，日志是 `User 0 Decrypted Successfully`，`/data/media/0` 是明文目录名。
 6. **手机加密**。文件加密已经在用：ext4 policy v1，内容 `aes-256-xts`，文件名 `aes-256-cts`，legacy session keyring。TWRP 能解开，见同日第六十轮。桌面锁屏还没收回来：为了走出 logo，`locksettings` 里的 `sp-handle` 被删过，`spblob` 还在。这一项还没记成做完。4.4 内核不实现 `FS_IOC_ADD_ENCRYPTION_KEY`，软件 keymaster 写不了 ICE keyslot，所以不用 footer 全盘加密，也不用 metadata encryption。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
 7. **红外**。已做，见同日第六十一轮。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。发射走 I2C 上的 Raon，不是 GPIO 脉冲。学习还没做，原厂 `com.gree.irremote` 没有装。
-8. **FM 收音机**。路线图里对应 `CONFIG_RADIO_SILABS`。原厂有收音机，18.1 上还没接。
+8. **FM 收音机**。芯片和耳机出声已经做了，见同日第六十二轮。102.1 没有杂音，音量键能调。桌面上还没有开关和选台的应用，这一项先不记成做完。
 9. **NFC**。`/vendor/etc/permissions/` 里已经放了 NFC 的特性 XML，功能没有做。
 10. **SELinux enforcing**。放在最后。前面每加一个 HAL 都会多一批 denial；现在切只会反复改策略。转之前先补蓝牙、RIL、指纹、相机已经记下来的 denial。在此之前保持 permissive，开机 denial 继续存。
 
@@ -626,6 +626,14 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第六十二轮：FM 收音机。有线耳机当地线，102.1 是干净的台，音量键能调。没有格式化 data，没有打电话，没有改语音拓扑，没有写 numid 6。内核是 `#48`，已经在手机上。调试进程已经停掉，芯片断电，环回音量是 0。图形界面还没有。
+
+1. **芯片**。不是高通内部的 iris。Silicon Labs Si4705 在 `i2c@75b5000`（`i2c_7`），地址 `0x11`。复位 GPIO 39，中断 GPIO 38，状态 GPIO 78。状态脚已经被 `msm-dai-tdm-tert-rx` 占着，pinctrl 选不上，驱动仍建出 `/dev/radio0`。供电使能是 GPIO 14，驱动在上电时拉高。数字模式，48 kHz。天线输入保持 0；写成 1 时全波段 RSSI 都是 0。耳机是天线，插孔是 Wired Headphones（设备 4），不是带麦的 headset。
+2. **声音**。数字音频走 tertiary MI2S，SoC 做主设备。时钟 GPIO 75、76，数据 GPIO 77。`AUDIO_FEATURE_ENABLED_FM_POWER_OPT` 打开之后，HAL 的 `handle_fm=1048580` 走 `play-fm headphones`：Tertiary MI2S 环回到 SLIMBUS 6，再进耳机。`fm_volume` 写 `Tert MI2S LOOPBACK Volume`，范围 0–8192。一开始写成 1.0，混音器是 8192，耳机只能摘下来听。
+3. **音量**。这条环回不在 AudioFlinger 的音轨里，音量键当时改的是铃声音量。`libaudioflinger` 在 `STREAM_MUSIC` 的音量写完、放开锁之后，把已经走过曲线的线性增益交给 HAL 的 `fm_volume`。非有限值丢掉。`fmroute listen` 先按当前媒体音量设增益，再占一条静音的 `STREAM_MUSIC`，音量键才落到媒体流上。实测 122、194、122，使用者确认能调。最大一档仍是 8192。
+4. **镜像**。内核 `#48`，`4.4.302-perf+`，`Wed Oct 28 20:15:47 EDT 2026`。`Image.gz-dtb` 12866491 字节，`sha256 9a8f41edc3c90efe66f784d15bfb62f53b03e843d3f89ecaf38916dc9ae202ad`。`boot-fm.img` 13709312 字节，`sha256 ca039132edbb5e9e481be9621058a1de67854fa2f0aa73cfcec540d7424aa2f9`，已写入 boot，读回哈希一致。`#47` 的 `boot-ir4.img` 没有覆盖。HAL、`libaudioflinger`、`fmtune`、`fmroute` 是推上去的，没有重编整份 system。内核改动还没推。
+5. **应用**。Lineage 的 `packages/apps/FMRadio` 是联发科 JNI，不打开 `/dev/radio0`。树里的高通 `FM2`（`com.caf.fmradio`）通过 `libfmjni` 打开这个节点，音量也走 `fm_volume`。整组 `BOARD_HAVE_QCOM_FM` 还会带上 iris 的 `fm_helium`，这块板子没有那颗芯片。应用还没打包。
 
 同日第六十一轮：红外。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。内核是已经在跑的 `#47`，这一轮没有重编内核。没有格式化 data，没有打电话。原厂 `com.gree.irremote` 没有装。学习还没做。
 
