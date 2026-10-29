@@ -307,7 +307,7 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
 14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮。第一次拒绝之后芯片不再采图的问题已修，见同日第六十三轮
 
-不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC 读卡、FM 的图形界面、SELinux enforcing、加密。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮。应用已打进包，打开失败已修，见同日第六十七轮。NFC 协议栈已起来，设置页不再卡，读卡还没确认，见同日第六十四轮。可刷写的安装包见同日第五十八轮，更新的一份见同日第六十六轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC 读卡、SELinux enforcing、加密。红外已做，见同日第六十一轮。FM 能收到台、音量键能调，见同日第六十二轮。应用打开失败已修，使用者确认能听，见同日第六十七轮。当前要刷的包见同日第六十八轮。NFC 协议栈已起来，设置页不再卡，读卡还没确认，见同日第六十四轮。可刷写的安装包见同日第五十八轮，更新的一份见同日第六十六轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -318,11 +318,11 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 1. **指纹改成强生物识别**。已做，见同日第三十七轮。`config_biometric_sensors` 写成 `0:2:15`，框架按强生物识别登记，成功比对会调用 `addAuthToken`。令牌是 69 字节、版本 0、类型是指纹、HMAC 全 0；这套软件 KeyStore 只拒版本或长度不对的令牌，不校验 HMAC。整机重启后第一次解锁仍要图案，这是 Android 的开机强认证，跟指纹强弱无关。
 2. **VoLTE**。短信和第二张卡已经能用。IMS 仍未注册。当前这张联通卡在 Bell 上的调通已经停下。第四十五轮第 1 项已经做完，见同日第四十六轮：自动选择不是关的，插上移动卡会按卡重选，但不保证落到 `volte_op` 或 `volte_su`。第 2 项已经做完，见同日第四十七轮：`IImsRadio` 在重启后仍由 `lshal` 看到，没有写进 manifest，注册状态按 IMSA 报，现在是未注册。第 3 项已经做完，见同日第四十八轮：移动卡走默认运营商配置时，增强型 4G 不会被关掉。没有换格力的 `libril-qc-qmi-1.so`，没有拨出电话。通话后回 LTE 仍只在电话落到 3G 时才重要，跟在这一项后面看。
 3. **通话能听清**。听筒和免提两个方向已经有声音，靠的是把 vocproc 拓扑改成 `NONE`。回声消除和降噪因此没有。有线耳机和蓝牙 SCO 通话也有声音，见同日第五十六轮。有线耳机通话音量键改的是 `STREAM_VOICE_CALL`。第五十六轮写了 `RX5`/`RX6` 主路音量，听感没变；第五十七轮改写 `RX1`/`RX2` 的 mix 音量，这才是 `INT1_2`/`INT2_2` 的寄存器。可能的尝试和顺序见同日第四十九轮。第 1 项已经听过，见同日第五十轮：房间不吵；回声出现在对方的 iPhone 上，格力贴耳时自己这边不放出回声。第 2 项已经对过号，见同日第五十一轮：固件里有 `0x10F89` / `0x10F8A`，ACDB 给听筒和免提的都是这一对。第 3 项不再重做，见同日第五十二轮：7F 补记里已经有这次提交的 `ADSP_EFAILED`。第 4 项条件不成立，见同日第五十三轮，没有改听筒拓扑。第 5 项没有缺的注册，见同日第五十四轮，没有改音频 HAL，也没有再打一通。第五十五轮起不再改拓扑：听筒和免提保持 `NONE`，回声还在。这一项在安装包之前。
-4. **用户能自己刷的 ROM 包**。已做，见同日第五十八轮。那一包是 `g0215d/boot-test/lineage-18.1-20261028-UNOFFICIAL-g0215d.zip`，只含 boot 和 system，boot 还是 `boot-fp8.img`。同日第六十六轮另打了一份，boot 换成现在手机上的 `#49`，system 里有 FM 应用，仍不带 recovery。2016 年的 TWRP 3.0.2 在这块未加密的 data 上刷过，分区哈希和刷之前一致，data 没有格式化。日常 recovery 从第五十九轮起换成 TWRP 3.7.0_11。2016 那份镜像还在 `device-backup/recovery.img`，启动失败时刷回去。
+4. **用户能自己刷的 ROM 包**。已做，见同日第五十八轮。那一包是 `g0215d/boot-test/lineage-18.1-20261028-UNOFFICIAL-g0215d.zip`，只含 boot 和 system，boot 还是 `boot-fp8.img`。同日第六十六轮另打了一份，boot 换成现在手机上的 `#49`，system 里有 FM 应用，仍不带 recovery。那一份打不开收音机，已被第六十八轮换掉。2016 年的 TWRP 3.0.2 在这块未加密的 data 上刷过，分区哈希和刷之前一致，data 没有格式化。日常 recovery 从第五十九轮起换成 TWRP 3.7.0_11。2016 那份镜像还在 `device-backup/recovery.img`，启动失败时刷回去。
 5. **能解密的新 TWRP**。已做，见同日第五十九轮和同日第六十轮。第五十九轮：TeamWin android-11 上的 3.7.0_11，未加密的 data 能挂，system-as-root 认 `/system_root/system/build.prop`，第五十八轮的包能刷，画面、触摸和振动都对。第六十轮：文件加密的 data 用原来的图案解开，日志是 `User 0 Decrypted Successfully`，`/data/media/0` 是明文目录名。
 6. **手机加密**。文件加密已经在用：ext4 policy v1，内容 `aes-256-xts`，文件名 `aes-256-cts`，legacy session keyring。TWRP 能解开，见同日第六十轮。桌面锁屏还没收回来：为了走出 logo，`locksettings` 里的 `sp-handle` 被删过，`spblob` 还在。这一项还没记成做完。4.4 内核不实现 `FS_IOC_ADD_ENCRYPTION_KEY`，软件 keymaster 写不了 ICE keyslot，所以不用 footer 全盘加密，也不用 metadata encryption。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
 7. **红外**。已做，见同日第六十一轮。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。发射走 I2C 上的 Raon，不是 GPIO 脉冲。学习还没做，原厂 `com.gree.irremote` 没有装。
-8. **FM 收音机**。芯片和耳机出声已经做了，见同日第六十二轮。102.1 没有杂音，音量键能调。`FM2` 打进第六十六轮的包之后，应用打开芯片失败，见同日第六十七轮。第六十七轮已经能打开并调到 98.1，声音走有线耳机。使用者还没确认这一次听感，这一项先不记成做完。
+8. **FM 收音机**。已做。芯片和耳机出声见同日第六十二轮。102.1 没有杂音，音量键能调。`FM2` 打开芯片的失败见同日第六十七轮，使用者确认修好了。当前刷机包见同日第六十八轮。
 9. **NFC**。协议栈已经起来，设置页不再卡住，见同日第六十四轮。芯片是 PN547，读卡还没确认，这一项先不记成做完。eSE 仍没有。
 10. **SELinux enforcing**。放在最后。前面每加一个 HAL 都会多一批 denial；现在切只会反复改策略。转之前先补蓝牙、RIL、指纹、相机已经记下来的 denial。在此之前保持 permissive，开机 denial 继续存。
 
@@ -627,16 +627,21 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
 
-同日第六十七轮：`FM2` 打开收音机失败。应用自己打开 `/dev/radio0` 被拒绝。没有重编内核，没有格式化 data，没有打电话。
+同日第六十八轮：按第六十七轮能听的系统重新打了刷机包。没有刷进手机，没有格式化 data。
+
+1. **包**。`/run/media/alpha/YMTC/g0215d/boot-test/lineage-18.1-20261029-UNOFFICIAL-g0215d.zip`，1799064037 字节，`sha256 e539fe99fa194d9825b8ce969d1ad9c9522d3c6b7d2f6bf7507370efaf302dec`。只含 boot 和 system。`boot.img` 仍是手机上的 `boot-nfc.img`，`sha256 d8648cbfb9b7d92a3dda3794bcb0880d6887c8e5890b558defba77726a240c15`。没有 recovery。安装脚本和第五十八轮一样。
+2. **里面有什么**。`/vendor/ueventd.rc` 里 `/dev/radio0` 是 `0660 system media`。`FM2` 带 `ACCESS_BROADCAST_RADIO`，`libqcomfm_jni.so` 用读写方式打开节点。第六十六轮那份打不开收音机，改名为 `lineage-18.1-20261029-UNOFFICIAL-g0215d.fm-open-fail.zip`，哈希仍是 `7db3427cd1a3b1c4969a8b2acb42db499615f75b6e41d5dd01588d41bbc687fd`。
+
+同日第六十七轮：`FM2` 打开收音机失败。应用自己打开 `/dev/radio0` 被拒绝。没有重编内核，没有格式化 data，没有打电话。使用者确认修好了。
 
 1. **日志**。`FmTransceiver: Fail to Open -1`。节点是 `crw-r----- system system`。应用是 `u0_a157`，不在 `system` 组。`open` 失败，后面的上电和调台都没走到。`fm_helium.so` 找不到是预期的：`vendor.qcom.bluetooth.soc` 是 `rome`，走 V4L，不走 iris。
 2. **修复**。`ueventd` 把 `/dev/radio0` 改成 `0660 system media`。`FM2` 加上 `ACCESS_BROADCAST_RADIO`，这个权限对应 `media` 组（gid 1013），平台签名直接授予。JNI 改成 `O_RDWR`，只读打开时 `VIDIOC_S_CTRL` 会被拒绝。手机上的库、apk 和 `ueventd.rc` 已经换上，节点现在是 `system:media` `0660`。
-3. **实机**。进程组里有 `1013`。`Opened 59`，`turning on 1`，`tuneRadio: 98.1`，回调频率 `98100`。`handle_fm=1048580`，日志是 `Route audio to WiredHeadset`。第 8 项等使用者确认听感后再记成做完。
+3. **实机**。进程组里有 `1013`。`Opened 59`，`turning on 1`，`tuneRadio: 98.1`，回调频率 `98100`。`handle_fm=1048580`，日志是 `Route audio to WiredHeadset`。使用者确认能听，第 8 项记成做完。
 
 同日第六十六轮：TWRP fork 和内核树已经推到 GitHub。新的刷机包带上 FM 应用。没有刷进手机，没有格式化 data，没有打电话。
 
 1. **仓库**。TWRP 是 `android_bootable_recovery` 的 `android-11-g0215d`。打包时 `libapplypatch` 编不过：包含了用不到的 `bmlutils` 和 `mtdutils`，校验读回的循环也被截断了。补上之后是 `01e32e96`。没有对 TeamWin 开 PR。内核是 `android_kernel_gree_g0215d` 的 `g0215d`，`281678a8c263`，红外、Si4705 和 PN547 都在里面。`out/` 没有提交。
-2. **包**。`/run/media/alpha/YMTC/g0215d/boot-test/lineage-18.1-20261029-UNOFFICIAL-g0215d.zip`，1799064037 字节，`sha256 7db3427cd1a3b1c4969a8b2acb42db499615f75b6e41d5dd01588d41bbc687fd`。只含 boot 和 system。`boot.img` 就是手机上的 `boot-nfc.img`，13713408 字节，`sha256 d8648cbfb9b7d92a3dda3794bcb0880d6887c8e5890b558defba77726a240c15`。没有 recovery，不会换掉 TWRP 3.7.0_11。不写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。安装脚本和第五十八轮一样：`dd` boot，`simg2img` system。第五十八轮那份 boot 是 `boot-fp8.img`，不要再刷那一份。
+2. **包**。当时写到 `/run/media/alpha/YMTC/g0215d/boot-test/lineage-18.1-20261029-UNOFFICIAL-g0215d.zip`，1799064037 字节，`sha256 7db3427cd1a3b1c4969a8b2acb42db499615f75b6e41d5dd01588d41bbc687fd`。第六十八轮把这个文件改名为 `lineage-18.1-20261029-UNOFFICIAL-g0215d.fm-open-fail.zip`。只含 boot 和 system。`boot.img` 就是手机上的 `boot-nfc.img`，13713408 字节，`sha256 d8648cbfb9b7d92a3dda3794bcb0880d6887c8e5890b558defba77726a240c15`。没有 recovery，不会换掉 TWRP 3.7.0_11。不写 aboot、tz、rpm、hyp、cmnlib、keymaster、modemst、fsg、persist。安装脚本和第五十八轮一样：`dd` boot，`simg2img` system。第五十八轮那份 boot 是 `boot-fp8.img`，不要再刷那一份。
 3. **FM**。`FM2`（`com.caf.fmradio`）在镜像的 `/system/system_ext/app/FM2/FM2.apk`，1496390 字节。`qcom.fmradio.jar` 在 `/system/framework`，`libqcomfm_jni.so` 在 `system_ext`。`vendor.qcom.bluetooth.soc` 仍是 `rome`，走 `/dev/radio0`，没有打 `fm_helium`，没有设 `BOARD_HAVE_QCOM_FM`。手机上还是旧的 system，要刷这个包桌面才有应用。第 8 项先不记成做完。
 4. **NFC**。读卡还没测。第 9 项不记成做完。设备树里加上 FM 包和 `/file_contexts.bin` 的标签这两处还没提交。
 
@@ -862,7 +867,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 同日第三十七轮：指纹改成强生物识别。没有重编内核，没有动模板和图案，没有刷整镜像。
 1. **原因**：`config_biometric_sensors` 是空数组。`AuthService` 不会调用 `initConfiguredStrength`，`mOEMStrength` 停在 0，`isStrongBiometric()` 为假。锁屏成功仍走 `onAuthenticationSucceeded`，日志是 `Skipping addAuthToken`。长时间不用之后，非强生物识别还可能被要求先输入图案。应用密钥也认不了这枚指纹。
 2. **强度**：`overlay/frameworks/base/core/res/res/values/config.xml` 加上 `0:2:15`（传感器 0、指纹、`BIOMETRIC_STRONG`）。重编 `framework-res.apk`，41810820 字节，`sha256 9cb41215d10a53896eb8eb9930022e5467efca4b616bf47daf800c78e3016272`，推到 `/system/framework/framework-res.apk`。清了 `/data/resource-cache` 再拉起框架。运行中的资源读出来是 `0:2:15`。日志是 `AuthService: Registering ID: 0 Modality: 2 Strength: 15`，接着 `FingerprintService: initConfiguredStrengthInternal(15)`。`15 & 0x7FFF` 等于 `BIOMETRIC_STRONG`，下次成功会进 `addAuthToken`。
-3. **令牌**：Goodix 比对成功时按 `hw_auth_token_t` 填 69 字节。版本字节是 0。challenge 是 `fingerprint_authenticate` 传入的 operation id，小端。user id 和 authenticator id 来自 `fingerprint.txt` 的后两列（`[redacted]`、`[redacted]`），小端。类型写成 `0x02000000`，是网络序的 `HW_AUTH_FINGERPRINT`。时间戳 `rev` 成网络序。HMAC 32 字节保持 0。HAL 从消息偏移 16 拷这 69 字节，和 `fingerprint_authenticated_t` 里 hat 的位置一致。`KeyStoreService::addAuthToken` 只检查权限、长度 69 和版本 0，不校验 HMAC。软件 Gatekeeper 的 `ComputeSignature` 也把 HMAC 写成 0。这枚令牌会被收下，不会因为 HMAC 为空被拒。
+3. **令牌**：Goodix 比对成功时按 `hw_auth_token_t` 填 69 字节。版本字节是 0。challenge 是 `fingerprint_authenticate` 传入的 operation id，小端。user id 和 authenticator id 来自 `fingerprint.txt` 的后两列，小端。具体数值不放进仓库。类型写成 `0x02000000`，是网络序的 `HW_AUTH_FINGERPRINT`。时间戳 `rev` 成网络序。HMAC 32 字节保持 0。HAL 从消息偏移 16 拷这 69 字节，和 `fingerprint_authenticated_t` 里 hat 的位置一致。`KeyStoreService::addAuthToken` 只检查权限、长度 69 和版本 0，不校验 HMAC。软件 Gatekeeper 的 `ComputeSignature` 也把 HMAC 写成 0。这枚令牌会被收下，不会因为 HMAC 为空被拒。
 4. **实机**：拉起框架后锁屏在听指纹，`Screen state: 1`，`fpalgo_Match_Start`。这一轮没有新的按压，所以还没有 `AddAuthenticationToken` 那一行。Finger 1（`1681692777`）还在，图案 SP handle 仍是 `[redacted]`。`gx_fpd` 在第一次 `stop` 时 `SIGSEGV`，init 拉起后重新载入模板，比对已经重新开始。没有换指纹库，没有换内核。整机重启后第一次解锁仍要图案，这是开机强认证，不是这枚指纹还弱。
 
 同日第三十六轮：录入和锁屏解锁都通过了。内核仍是 `#43`（`boot-fp8.img`），没有重编。图案锁屏还在。

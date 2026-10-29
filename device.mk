@@ -159,6 +159,9 @@ PRODUCT_PACKAGES += \
 # iris fm_helium, which this board does not have.
 PRODUCT_BOOT_JARS += qcom.fmradio
 
+# bluetooth/bdaddr and wifi/wlan_mac.bin in git are placeholders.
+# Put this handset's own addresses there before building an image
+# that will be flashed.
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/public.libraries.txt:$(TARGET_COPY_OUT_VENDOR)/etc/public.libraries.txt \
     $(LOCAL_PATH)/nfc/libnfc-nci.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-nci.conf \

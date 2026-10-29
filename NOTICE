@@ -1,0 +1,32 @@
+Gree G0215D device tree
+Copyright 2026 alpha-liu-01
+
+The device-tree sources in this repository are licensed under the
+Apache License, Version 2.0. See the LICENSE file. That covers the
+makefiles, init scripts, sepolicy, overlays, shims, and notes written
+for this device, except where a file already carries its own license
+notice. Those notices stay in force. Android Open Source Project and
+Linux Foundation files keep their original copyrights.
+
+The prebuilt binaries are not covered by the Apache License. They were
+extracted from the factory images and are included only so this device
+can boot. Their copyright stays with the respective owners, including
+Qualcomm, and they may not be relicensed by this repository. The
+directories are:
+
+  audio/acdbdata, audio/lib
+  bluetooth/*.so and other closed bluetooth binaries
+  camera/vendor, camera/lib
+  fingerprint
+  firmware
+  gpu
+  gps/*.so
+  media/*.so and media/adsprpcd
+  nfc/*.so
+  proprietary
+  radio/bin, radio/lib, radio/lib64, radio/*.apk, radio/*.dex, radio/*.db
+  sensors/*.so
+
+bluetooth/bdaddr and wifi/wlan_mac.bin in this tree are placeholders,
+not a handset address. Replace them with the values from the phone
+before flashing a personal build.
