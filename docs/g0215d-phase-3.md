@@ -307,7 +307,7 @@ system 里补了 `libEGL_swiftshader.so`、`libGLESv1_CM_swiftshader.so`、`libG
 13. 相机。后摄 `s5k3p3`、前摄 `ov8858` 都能预览、拍照、录短视频。系统自带相机冷启动后能预览，拍出 3456x4608 的照片，见 7L
 14. 指纹。录入一枚 Finger 1（`1681692777`），锁屏上这根手指能解开，另一根手指被拒绝。见 7M、同日第三十六轮
 
-不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、红外、FM、SELinux enforcing、加密和可刷写的安装包。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
+不挡住这次收口，但成品 ROM 还要做：VoLTE/IMS（短信和第二张卡已经能用）、通话后回 LTE、回声消除（语音拓扑目前是关掉的）、蓝牙耳机通话、NFC、FM、SELinux enforcing、加密和可刷写的安装包。红外已做，见同日第六十一轮。顺序见下面「距离成品 ROM」。充电能充上电即可，电流和温度留到阶段 5。基带版本是 `MPSS.TH.2.0.c1`，RIL blob 用格力自己的。
 
 SELinux 保持 permissive。每次开机把 denial 存下来。
 
@@ -321,7 +321,7 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 4. **用户能自己刷的 ROM 包**。已做，见同日第五十八轮。包在 `g0215d/boot-test/lineage-18.1-20261028-UNOFFICIAL-g0215d.zip`，只含 boot 和 system。2016 年的 TWRP 3.0.2 在这块未加密的 data 上刷过，分区哈希和刷之前一致，data 没有格式化。日常 recovery 从第五十九轮起换成 TWRP 3.7.0_11。2016 那份镜像还在 `device-backup/recovery.img`，启动失败时刷回去。
 5. **能解密的新 TWRP**。已做，见同日第五十九轮和同日第六十轮。第五十九轮：TeamWin android-11 上的 3.7.0_11，未加密的 data 能挂，system-as-root 认 `/system_root/system/build.prop`，第五十八轮的包能刷，画面、触摸和振动都对。第六十轮：文件加密的 data 用原来的图案解开，日志是 `User 0 Decrypted Successfully`，`/data/media/0` 是明文目录名。
 6. **手机加密**。文件加密已经在用：ext4 policy v1，内容 `aes-256-xts`，文件名 `aes-256-cts`，legacy session keyring。TWRP 能解开，见同日第六十轮。桌面锁屏还没收回来：为了走出 logo，`locksettings` 里的 `sp-handle` 被删过，`spblob` 还在。这一项还没记成做完。4.4 内核不实现 `FS_IOC_ADD_ENCRYPTION_KEY`，软件 keymaster 写不了 ICE keyslot，所以不用 footer 全盘加密，也不用 metadata encryption。开机后第一次解锁仍要图案，这是 Android 的规则，和指纹强弱无关。
-7. **红外**。原厂有 `com.gree.irremote`，路线图里的内核开关是 `CONFIG_RAON_REMOTE_CTRL_SOC`。板级线索比 FM 和 NFC 清楚，先做。
+7. **红外**。已做，见同日第六十一轮。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。发射走 I2C 上的 Raon，不是 GPIO 脉冲。学习还没做，原厂 `com.gree.irremote` 没有装。
 8. **FM 收音机**。路线图里对应 `CONFIG_RADIO_SILABS`。原厂有收音机，18.1 上还没接。
 9. **NFC**。`/vendor/etc/permissions/` 里已经放了 NFC 的特性 XML，功能没有做。
 10. **SELinux enforcing**。放在最后。前面每加一个 HAL 都会多一批 denial；现在切只会反复改策略。转之前先补蓝牙、RIL、指纹、相机已经记下来的 denial。在此之前保持 permissive，开机 denial 继续存。
@@ -626,6 +626,16 @@ SELinux 保持 permissive。每次开机把 denial 存下来。
 2. **用户态**：`android.hardware.vibrator@1.0-service` 加 `vibrator.default`，写 `/sys/class/timed_output/vibrator/enable`。
 3. **实机**：状态寄存器 `0x64`，额定电压 `0x16` 读回 `0x30`。sysfs 写 500 会倒计时到 0。`vendor.vibrator-1-0` 冷启动自己起来。
 4. **镜像**：`boot-vibe.img`，`sha256 a2fa42abeff5704f6bb731e3198e5646deff1733baf738cef930b9cb1c347c8f`，已刷。`system-7j.img` 编出来了，`sha256 399ef63dde9b47666c0789388145b92efd6440b5292278eb4452ae1aedf6629a`，没有刷。内核改动还没提交。
+
+同日第六十一轮：红外。海信 Roku 电视用小米遥控器里海信的第 16 套配置打开了。内核是已经在跑的 `#47`，这一轮没有重编内核。没有格式化 data，没有打电话。原厂 `com.gree.irremote` 没有装。学习还没做。
+
+1. **不是脉冲发生器**。发射管后面是 I2C 从设备，兼容串 `raon,remote-ctrl`，地址 `0x50`，总线是 `i2c@75b6000`（这棵树的 `i2c_8`），时钟 400 kHz。使能是 GPIO 50，init 是 GPIO 126，复位是 GPIO 148。I2C 的数据和时钟是 GPIO 6、GPIO 7。`write()` 把一包字节交给芯片，载波和脉冲由芯片产生。Consumer IR 的图案是微秒，不能当成 GPIO 波形打出去。原厂在 `ConsumerIrManager.transmit` 里把图案打成这个包，再写 `/dev/remote_ctrl_dev`。18.1 不改 framework，由 `consumerir.qcom` 做同样的打包。`ro.hardware=qcom`，库是 `consumerir.qcom.so`。节点权限 `0660 system system`。
+2. **包**。`pkt[0]` 是 0。`pkt[1..3]` 是载波频率的 24 位大端。后面每个时长一个大端 `u16`。250 字节一块：`unit[0]` 是包号，`unit[1]` 是这块字节数加 2，接着是数据。校验和从包号算起，加上 `unit[1]` 到 `unit[num+1]`，大端放在末尾两字节。写入长度是 `num+4`。最后一块刚好 250 字节时再写 4 字节尾包。每次写入之前把 init 拉低 10 ms 再拉高 10 ms。
+3. **总线**。152 字节走 DMA 会报 `OVER_UNDER_RUN`。`i2c_8` 加了 `qcom,disable-dma`，长包走 BLOCK，振动的短写仍走 FIFO。芯片还在发上一帧时，短包会马上 NACK，长包则把控制器等到超时，复位时把正在发的码掐断。`I2C_MSM_TIMEOUT_MIN_USEC` 从 500 ms 改成 3 s，超时不再重试。
+4. **时间单位**。芯片把每个 `u16` 当成载波周期数，不是微秒。9000 微秒在 38 kHz 下会被当成 9000 个周期，一帧拉长约 25 倍，电视解不出，摄像头仍能看到红光。换算是 `周期 = 微秒 × 频率 / 1000000`。频率收到原厂那六档：30000、33000、36000、38000、40000、56000。海信这条数据库里是 37910，收成 38000。写完之后 HAL 再等这一帧的微秒数加 80 ms，下一发才开始。
+5. **实机**。19:48:43，`miir` 打了 `send key: power`。HAL 是 `carrier 38000 Hz, 72 pulses, 218000 us, first 343 cycles`。内核是 `tx len=152 00 96 00 00 94 70 01 57`，接着 `i2c_master_send=152 success`，大约 7 ms。这次按下没有 `TIMEOUT_ERROR`。`00 96` 是包号 0、长度 150。`00 00 94 70` 是 38000 Hz。`01 57` 是 343 个周期，对应原来的 9037 微秒引导头。使用者确认电视开了。修之前同一条是 `00 96 00 00 94 16 23 4d`：37910 Hz，9037 被当成周期数。
+6. **镜像**。内核 `#47`，`4.4.302-perf+`，`Wed Oct 28 19:23:05 EDT 2026`。`Image.gz-dtb` 12782599 字节，`sha256 b90214cd4964da18376957912e4dc982329fabb5f2acf981321dc73aa290ce18`。`boot-ir4.img` 13623296 字节，`sha256 da58ebb0b0ca9c7736de0666eb15024f7e09dc8954aa413ff69a59528f451de9`，这一轮之前已经在手机上。这一轮只换了 HAL。`/vendor/lib64/hw/consumerir.qcom.so` 11520 字节，`sha256 42c530f33266184899890c61de96b56b5fd16fa388e345fe664cbdaf8e848820`。32 位那份 8108 字节，`sha256 98afd5ed4fe6a0cfee6db6f4a53869e923980045d9487eff7a7b7ea010cceeb6`。没有重编整份 system。源码在本仓库和 18.1 树的 `consumerir/consumerir.c`。内核改动还没推。
+7. **学习**。接收仍要原厂那套私有接口：先写 `{0x11,0x11,0xee,0xee}`，再把 init 设成输入。取消是 `{0x69,0x69,0x96,0x96}`。Consumer IR 没有这条接收路径。原厂 `com.gree.irremote` 没有装。
 
 同日第六十轮：TWRP 解开已经加密的 data。图案页打开，画一次之后日志是 `User 0 Decrypted Successfully` 和 `Data successfully decrypted`。`/data/system` 与 `/data/media/0` 都是明文目录名。没有格式化 data，没有打电话。恢复内核用的是已经编好的 `#44`，这一轮没有再编内核。
 

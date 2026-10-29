@@ -1,0 +1,10 @@
+cc_library_shared {
+    name: "consumerir.qcom",
+    srcs: ["consumerir.c"],
+    cflags: ["-Wall", "-Werror"],
+    header_libs: ["libhardware_headers"],
+    shared_libs: ["liblog"],
+    relative_install_path: "hw",
+    compile_multilib: "both",
+    vendor: true,
+}
